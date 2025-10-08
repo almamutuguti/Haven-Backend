@@ -1,4 +1,3 @@
-# apps/accounts/forms.py
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from django.core.exceptions import ValidationError
@@ -12,6 +11,7 @@ class CustomUserCreationForm(UserCreationForm):
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
             'placeholder': 'Enter password',
+            'style': 'width: 300px;'
         }),
         help_text="Enter a strong password"
     )
@@ -21,6 +21,7 @@ class CustomUserCreationForm(UserCreationForm):
         widget=forms.PasswordInput(attrs={
             'class': 'form-control', 
             'placeholder': 'Confirm password',
+            'style': 'width: 300px;'
         }),
         help_text="Enter the same password as above"
     )
@@ -29,46 +30,58 @@ class CustomUserCreationForm(UserCreationForm):
         model = CustomUser
         fields = (
             'badge_number', 'username', 'email', 'phone_number', 
-            'user_type', 'first_name', 'last_name', 'certification_level',
+            'user_type', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone'
         )
         widgets = {
             'badge_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., FA001, HS002, SA001',
+                'style': 'width: 300px;'
             }),
             'username': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., john_doe, mary_smith',
+                'style': 'width: 300px;'
             }),
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., john@haven.com',
+                'style': 'width: 300px;'
             }),
             'phone_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+254712345678',
+                'style': 'width: 300px;'
             }),
-            'user_type': forms.Select(attrs={'class': 'form-control'}),
+            'user_type': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
             'first_name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., John',
+                'style': 'width: 300px;'
             }),
             'last_name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., Doe',
+                'style': 'width: 300px;'
             }),
-            'certification_level': forms.TextInput(attrs={
+            'registration_number': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'e.g., Basic First Aid, EMT, Paramedic',
+                'placeholder': 'e.g., KRCFA12345, MOH7890',
+                'style': 'width: 300px;'
             }),
             'emergency_contact_name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., Jane Doe',
+                'style': 'width: 300px;'
             }),
             'emergency_contact_phone': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+254798765432',
+                'style': 'width: 300px;'
             }),
         }
         help_texts = {
@@ -96,21 +109,51 @@ class CustomUserChangeForm(UserChangeForm):
         model = CustomUser
         fields = (
             'badge_number', 'username', 'email', 'phone_number', 
-            'user_type', 'first_name', 'last_name', 'certification_level',
+            'user_type', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone',
             'is_active', 'is_staff', 'is_superuser'
         )
         widgets = {
-            'badge_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'username': forms.TextInput(attrs={'class': 'form-control'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'user_type': forms.Select(attrs={'class': 'form-control'}),
-            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'certification_level': forms.TextInput(attrs={'class': 'form-control'}),
-            'emergency_contact_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'emergency_contact_phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'badge_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'username': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'phone_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'user_type': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'registration_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'emergency_contact_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
+            'emergency_contact_phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
         }
 
 class QuickUserCreateForm(forms.ModelForm):
@@ -120,6 +163,7 @@ class QuickUserCreateForm(forms.ModelForm):
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
             'placeholder': 'Set password',
+            'style': 'width: 300px;'
         })
     )
     
@@ -130,12 +174,17 @@ class QuickUserCreateForm(forms.ModelForm):
             'badge_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., FA001',
+                'style': 'width: 300px;'
             }),
             'username': forms.TextInput(attrs={
                 'class': 'form-control', 
                 'placeholder': 'e.g., test_user',
+                'style': 'width: 300px;'
             }),
-            'user_type': forms.Select(attrs={'class': 'form-control'}),
+            'user_type': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;'
+            }),
         }
     
     def save(self, commit=True):
@@ -150,14 +199,20 @@ class BulkUserCreateForm(forms.Form):
     
     user_type = forms.ChoiceField(
         choices=CustomUser.USER_TYPE_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-control'})
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'style': 'width: 300px;'
+        })
     )
     
     count = forms.IntegerField(
         min_value=1,
         max_value=10,
         initial=3,
-        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'style': 'width: 300px;'
+        }),
         help_text="Number of test users to create (1-10)"
     )
     
@@ -166,6 +221,49 @@ class BulkUserCreateForm(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'e.g., TEST, DEMO, DEV',
+            'style': 'width: 300px;'
         }),
         help_text="Base for badge numbers (e.g., TEST001, TEST002)"
+    )
+
+class TestLoginForm(forms.Form):
+    """Simple form to test login credentials"""
+    
+    login = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Badge number, username, email, or phone',
+            'style': 'width: 300px;'
+        }),
+        help_text="Enter badge number, username, email, or phone number"
+    )
+    
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Password',
+            'style': 'width: 300px;'
+        })
+    )
+
+class EmergencyAccessTestForm(forms.Form):
+    """Form to test emergency access functionality"""
+    
+    badge_number = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter badge number',
+            'style': 'width: 300px;'
+        }),
+        help_text="Badge number of first aider or hospital staff"
+    )
+    
+    reason = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Emergency reason (optional)',
+            'rows': 3,
+            'style': 'width: 300px;'
+        })
     )

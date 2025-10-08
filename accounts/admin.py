@@ -26,7 +26,7 @@ class CustomUserAdmin(UserAdmin):
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
         (_('Haven Specific'), {
             'fields': (
-                'user_type', 'phone_number', 'certification_level',
+                'user_type', 'phone_number', 'registration_number',
                 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),
@@ -40,7 +40,7 @@ class CustomUserAdmin(UserAdmin):
         (_('Haven Specific'), {
             'fields': (
                 'user_type', 'email', 'phone_number', 'first_name', 'last_name',
-                'certification_level', 'emergency_contact_name', 'emergency_contact_phone'
+                'registration_number', 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),
     )

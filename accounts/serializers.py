@@ -11,7 +11,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = (
             'badge_number', 'username', 'email', 'phone_number', 'password', 'password_confirm',
-            'user_type', 'first_name', 'last_name', 'certification_level', 
+            'user_type', 'first_name', 'last_name', 'registration_number', 
             'emergency_contact_name', 'emergency_contact_phone'
         )
         extra_kwargs = {
@@ -93,7 +93,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = (
             'id', 'badge_number', 'username', 'email', 'phone_number', 'user_type',
-            'first_name', 'last_name', 'certification_level', 
+            'first_name', 'last_name', 'registration_number', 
             'emergency_contact_name', 'emergency_contact_phone',
             'date_joined', 'last_login'
         )

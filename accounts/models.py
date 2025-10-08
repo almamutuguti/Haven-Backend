@@ -1,4 +1,5 @@
 # apps/accounts/models.py
+import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.core.validators import RegexValidator
@@ -42,9 +43,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         message="Phone number must be in format: '+254712345678'."
     )
     
-    # REMOVE UUID - Use default AutoField instead
-    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='first_aider')
     
     # Required fields for AbstractBaseUser
@@ -66,9 +65,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         blank=True
     )
     
-    # For First Aiders
+    # For First Aiders - CHANGED: certification_level → registration_number
     badge_number = models.CharField(max_length=50, unique=True)
-    certification_level = models.CharField(max_length=100, blank=True, null=True)
+    registration_number = models.CharField(max_length=100, blank=True, null=True)  # NEW FIELD
+    
+    # # For Hospital Staff
+    # hospital = models.ForeignKey(
+    #     'hospitals.Hospital', 
+    #     on_delete=models.SET_NULL, 
+    #     null=True, 
+    #     blank=True
+    # )
     
     # For Patients (optional)
     emergency_contact_name = models.CharField(max_length=100, blank=True)

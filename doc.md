@@ -20,7 +20,6 @@ This document outlines a scalable, mission-critical backend architecture for the
 **Features:**
 - One-tap emergency activation
 - Real-time location tracking
-- Multi-factor alert verification
 - Alert prioritization (critical, high, medium)
 - Duplicate alert prevention
 - Emergency session management
@@ -96,7 +95,6 @@ This document outlines a scalable, mission-critical backend architecture for the
 
 **Features:**
 - JWT-based authentication
-- Multi-factor authentication (SMS/Email)
 - Role-based access control (Patient, Hospital Admin, System Admin)
 - Emergency bypass authentication
 - Session management
@@ -104,16 +102,15 @@ This document outlines a scalable, mission-critical backend architecture for the
 **Endpoints:**
 - `POST /api/v1/auth/register` - User registration
 - `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/verify` - MFA verification
 - `POST /api/v1/auth/refresh` - Token refresh
 - `POST /api/v1/auth/emergency-bypass` - Emergency access
 
 ## 4. Suggested Folder Structure (Django)
 
     # Haven - Emergency Response Platform
-# Core Project Structure with Essential Logic
+    # Core Project Structure with Essential Logic
 
-    Haven/
+    Haven-Backend/
     ├── config/
     │   ├── __init__.py
     │   ├── settings/
