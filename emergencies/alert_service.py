@@ -1,4 +1,3 @@
-# apps/emergencies/services/alert_service.py
 import logging
 from django.db import transaction
 from django.utils import timezone
