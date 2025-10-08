@@ -43,7 +43,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         message="Phone number must be in format: '+254712345678'."
     )
     
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='first_aider')
     
     # Required fields for AbstractBaseUser
