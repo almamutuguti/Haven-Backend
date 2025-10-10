@@ -1,6 +1,7 @@
+from ast import List
 from typing import Dict, Any, Optional
-from google_maps_services import GoogleMapsService
-from .models import Location
+from geolocation.services.google_maps_services import GoogleMapsService
+from ..models import Location
 from django.contrib.gis.geos import Point
 
 
