@@ -11,7 +11,7 @@ from .serializers import (
     DistanceRequestSerializer, DistanceResponseSerializer,
     NearbyHospitalsRequestSerializer, HospitalSearchResultSerializer
 )
-from .services import GeocodingService, DistanceService, PlacesService
+
 
 logger = logging.getLogger(__name__)
 

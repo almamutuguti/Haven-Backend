@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Location, HospitalLocation
-from .services import GeocodingService, DistanceService, PlacesService
+
 
 
 class LocationSerializer(serializers.ModelSerializer):

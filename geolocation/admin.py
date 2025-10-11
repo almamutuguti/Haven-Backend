@@ -16,7 +16,7 @@ class HospitalLocationAdmin(admin.ModelAdmin):
     list_display = ['id', 'get_address', 'place_id', 'has_ambulance_bay']
     list_filter = ['has_ambulance_bay']
     search_fields = ['location__formatted_address', 'place_id']
-    readonly_fields = ['created_at', 'updated_at']
+    # readonly_fields = ['created_at', 'updated_at']
     
     def get_address(self, obj):
         return obj.location.formatted_address

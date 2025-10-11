@@ -1,7 +1,6 @@
-from ast import List
 import math
 import logging
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Dict
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
@@ -88,7 +87,7 @@ def parse_coordinates(coord_string: str) -> Optional[Tuple[float, float]]:
         return None
 
 
-def get_bounding_box(latitude: float, longitude: float, radius_km: float = 10) -> dict:
+def get_bounding_box(latitude: float, longitude: float, radius_km: float = 10) -> Dict[str, float]:
     """
     Calculate bounding box for a given point and radius
     """

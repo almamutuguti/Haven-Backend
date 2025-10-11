@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
 from emergencies.models import EmergencyAlert, EmergencySession, EmergencyUpdate
-from accounts.models import User
+from accounts.models import CustomUser as User
 
 logger = logging.getLogger(__name__)
 
