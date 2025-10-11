@@ -5,6 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import transaction
 
+from geolocation.services.distance_service import DistanceService
+from geolocation.services.geocoding_services import GeocodingService
+from geolocation.services.places_service import PlacesService
+
 from .models import Location
 from .serializers import (
     LocationSerializer, GeocodingRequestSerializer, GeocodingResponseSerializer,

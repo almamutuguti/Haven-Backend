@@ -22,7 +22,8 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('geolocation/', include('geolocation.urls')),
     path('emergencies/', include('emergencies.urls')),
-    path('hospitals/', include('hospitals.urls'))
+    path('hospitals/', include('hospitals.urls')),
+    path('medical/', include('medical.urls'))
 
     
 ]

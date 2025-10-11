@@ -1,9 +1,8 @@
 import logging
-from typing import List, Dict, Optional, Tuple
-from django.db.models import Q, F, FloatField, ExpressionWrapper
-from django.db.models.functions import ACos, Cos, Radians, Sin
+from typing import List, Dict, Optional, Tuple, Any
+from django.db.models import Q, F, Avg, Count
 from django.core.cache import cache
-from emergencies import models # confirm no circular import
+
 from hospitals.models import Hospital, HospitalSpecialty, HospitalCapacity
 from geolocation.services.places_service import PlacesService
 from geolocation.services.distance_service import DistanceService
@@ -26,7 +25,7 @@ class DiscoveryService:
         specialties: List[str] = None,
         hospital_level: str = None,
         max_results: int = 20
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Find hospitals near a location with optional filtering
         """
@@ -90,7 +89,7 @@ class DiscoveryService:
             return []
     
     @staticmethod
-    def _serialize_hospital_for_discovery(hospital: Hospital, distance_km: float) -> Dict:
+    def _serialize_hospital_for_discovery(hospital: Hospital, distance_km: float) -> Dict[str, Any]:
         """
         Serialize hospital data for discovery results
         """
@@ -128,7 +127,7 @@ class DiscoveryService:
         }
     
     @staticmethod
-    def _calculate_hospital_rating(hospital: Hospital) -> Dict:
+    def _calculate_hospital_rating(hospital: Hospital) -> Dict[str, Any]:
         """
         Calculate hospital rating from reviews
         """
@@ -141,9 +140,9 @@ class DiscoveryService:
                 'emergency_care': 0
             }
         
-        overall_avg = ratings.aggregate(models.Avg('overall_rating'))['overall_rating__avg']
+        overall_avg = ratings.aggregate(Avg('overall_rating'))['overall_rating__avg']
         emergency_avg = ratings.filter(was_emergency=True).aggregate(
-            models.Avg('emergency_care_rating')
+            Avg('emergency_care_rating')
         )['emergency_care_rating__avg']
         
         return {
@@ -158,7 +157,7 @@ class DiscoveryService:
         latitude: float = None,
         longitude: float = None,
         max_results: int = 20
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Search hospitals by name, specialty, or location
         """
@@ -199,7 +198,7 @@ class DiscoveryService:
             return []
     
     @staticmethod
-    def get_hospital_details(hospital_id: int) -> Optional[Dict]:
+    def get_hospital_details(hospital_id: int) -> Optional[Dict[str, Any]]:
         """
         Get detailed information about a specific hospital
         """
@@ -220,7 +219,7 @@ class DiscoveryService:
             return None
     
     @staticmethod
-    def _serialize_hospital_details(hospital: Hospital) -> Dict:
+    def _serialize_hospital_details(hospital: Hospital) -> Dict[str, Any]:
         """
         Serialize detailed hospital information
         """
@@ -253,7 +252,7 @@ class DiscoveryService:
         return base_data
     
     @staticmethod
-    def check_hospital_availability(hospital_id: int) -> Optional[Dict]:
+    def check_hospital_availability(hospital_id: int) -> Optional[Dict[str, Any]]:
         """
         Check real-time hospital availability and capacity
         """

@@ -1,12 +1,12 @@
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from django.db.models import Q, F, Value, FloatField
 from django.db.models.functions import Coalesce
+from django.db import models  # Add this import
 
 from hospitals.models import Hospital, HospitalSpecialty, HospitalCapacity
 from geolocation.services.distance_service import DistanceService
 from geolocation.utils import calculate_distance_haversine
-from emergencies import models
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class MatchingService:
         required_specialties: List[str] = None,
         max_distance_km: int = 50,
         max_results: int = 5
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Find the best hospitals for a specific emergency
         """
@@ -92,17 +92,17 @@ class MatchingService:
         emergency_lon: float,
         emergency_type: str,
         required_specialties: List[str]
-    ) -> Dict:
+    ) -> Dict[str, float]:
         """
         Calculate matching score for a hospital based on multiple factors
         """
         scores = {
-            'distance_score': 0,
-            'capacity_score': 0,
-            'specialty_score': 0,
-            'level_score': 0,
-            'rating_score': 0,
-            'total_score': 0
+            'distance_score': 0.0,
+            'capacity_score': 0.0,
+            'specialty_score': 0.0,
+            'level_score': 0.0,
+            'rating_score': 0.0,
+            'total_score': 0.0
         }
         
         # 1. Distance Score (40% weight)
@@ -144,17 +144,17 @@ class MatchingService:
         Calculate score based on distance (closer = higher score)
         """
         if distance_km <= 5:
-            return 100
+            return 100.0
         elif distance_km <= 10:
-            return 80
+            return 80.0
         elif distance_km <= 20:
-            return 60
+            return 60.0
         elif distance_km <= 30:
-            return 40
+            return 40.0
         elif distance_km <= 50:
-            return 20
+            return 20.0
         else:
-            return 0
+            return 0.0
     
     @staticmethod
     def _calculate_capacity_score(hospital: Hospital) -> float:
@@ -163,24 +163,24 @@ class MatchingService:
         """
         capacity = getattr(hospital, 'capacity', None)
         if not capacity or not capacity.is_accepting_patients:
-            return 0
+            return 0.0
         
         # Base score on capacity status
         capacity_scores = {
-            'low': 100,      # Lots of capacity
-            'moderate': 75,  # Moderate capacity
-            'high': 50,      # Limited capacity
-            'full': 10,      # Very limited capacity
-            'overflow': 0,   # No capacity
+            'low': 100.0,      # Lots of capacity
+            'moderate': 75.0,  # Moderate capacity
+            'high': 50.0,      # Limited capacity
+            'full': 10.0,      # Very limited capacity
+            'overflow': 0.0,   # No capacity
         }
         
-        base_score = capacity_scores.get(capacity.capacity_status, 50)
+        base_score = capacity_scores.get(capacity.capacity_status, 50.0)
         
         # Adjust based on emergency bed availability
         if capacity.emergency_beds_available > 0:
             emergency_bed_ratio = capacity.emergency_beds_available / max(capacity.emergency_beds_total, 1)
             adjustment = emergency_bed_ratio * 30  # Up to 30 points adjustment
-            return min(base_score + adjustment, 100)
+            return min(base_score + adjustment, 100.0)
         
         return base_score
     
@@ -196,7 +196,7 @@ class MatchingService:
         specialties = hospital.specialties.filter(is_available=True)
         
         if not specialties.exists():
-            return 0
+            return 0.0
         
         # Map emergency types to required specialties
         emergency_specialty_map = {
@@ -215,23 +215,23 @@ class MatchingService:
         matched_specialties = set(available_specialties) & set(required_specialties)
         
         if not matched_specialties:
-            return 0
+            return 0.0
         
         # Score based on number of matched specialties and their capability levels
-        specialty_score = 0
+        specialty_score = 0.0
         for spec in specialties:
             if spec.specialty in matched_specialties:
                 capability_scores = {
-                    'basic': 20,
-                    'intermediate': 40,
-                    'advanced': 70,
-                    'specialized': 100
+                    'basic': 20.0,
+                    'intermediate': 40.0,
+                    'advanced': 70.0,
+                    'specialized': 100.0
                 }
-                specialty_score += capability_scores.get(spec.capability_level, 20)
+                specialty_score += capability_scores.get(spec.capability_level, 20.0)
         
         # Normalize score
-        max_possible_score = len(required_specialties) * 100
-        return min((specialty_score / max_possible_score) * 100, 100)
+        max_possible_score = len(required_specialties) * 100.0
+        return min((specialty_score / max_possible_score) * 100.0, 100.0)
     
     @staticmethod
     def _calculate_level_score(hospital: Hospital) -> float:
@@ -239,15 +239,15 @@ class MatchingService:
         Calculate score based on hospital level
         """
         level_scores = {
-            'level_1': 30,
-            'level_2': 50,
-            'level_3': 70,
-            'level_4': 85,
-            'level_5': 95,
-            'level_6': 100,
+            'level_1': 30.0,
+            'level_2': 50.0,
+            'level_3': 70.0,
+            'level_4': 85.0,
+            'level_5': 95.0,
+            'level_6': 100.0,
         }
         
-        return level_scores.get(hospital.level, 50)
+        return level_scores.get(hospital.level, 50.0)
     
     @staticmethod
     def _calculate_rating_score(hospital: Hospital) -> float:
@@ -257,18 +257,18 @@ class MatchingService:
         ratings = hospital.ratings.filter(is_approved=True, was_emergency=True)
         
         if not ratings.exists():
-            return 50  # Default score if no ratings
+            return 50.0  # Default score if no ratings
         
         avg_rating = ratings.aggregate(models.Avg('emergency_care_rating'))['emergency_care_rating__avg']
         
         if avg_rating is None:
-            return 50
+            return 50.0
         
         # Convert 1-5 rating to 0-100 scale
-        return (avg_rating / 5) * 100
+        return (avg_rating / 5) * 100.0
     
     @staticmethod
-    def _serialize_hospital_for_matching(hospital: Hospital) -> Dict:
+    def _serialize_hospital_for_matching(hospital: Hospital) -> Dict[str, Any]:
         """
         Serialize hospital data for matching results
         """
@@ -317,7 +317,7 @@ class MatchingService:
         emergency_lat: float,
         emergency_lon: float,
         max_results: int = 3
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Get fallback hospitals in case primary hospital cannot accept patient
         """

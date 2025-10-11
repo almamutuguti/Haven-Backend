@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'geolocation',
     'emergencies',
     'hospitals',
+    'medical',
 
 ]
 
