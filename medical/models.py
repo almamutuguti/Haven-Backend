@@ -1,6 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from apps.accounts.models import User
+from accounts.models import CustomUser as User
 
 
 class MedicalProfile(models.Model):
