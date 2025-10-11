@@ -44,8 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'accounts',
-    'emergencies',
-    'hospitals',
+    'geolocation',
 
 ]
 
@@ -144,3 +143,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+# Google Maps Configuration
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY')
+GOOGLE_MAPS_CACHE_TIMEOUT = 3600  # 1 hour
+
+GEOIP_PATH = BASE_DIR / 'geoip'
+
+
+
+

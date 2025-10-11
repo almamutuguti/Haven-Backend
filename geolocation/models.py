@@ -1,173 +1,100 @@
 from django.db import models
-from django.contrib.gis.db import models as gis_models
-from django.contrib.gis.geos import Point
 from django.core.validators import MinValueValidator, MaxValueValidator
-from accounts.models import User
+from accounts.models import CustomUser as User
 
 
 class Location(models.Model):
     """
-    Generic location model that can be used by any app
+    Store geographical locations with coordinates and address information
     """
     user = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
+        related_name='locations',
         null=True, 
-        blank=True,
-        related_name='locations'
+        blank=True
     )
-    name = models.CharField(max_length=255, blank=True)
-    address = models.TextField(blank=True)
+    
+    # Coordinates
+    latitude = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6,
+        validators=[
+            MinValueValidator(-90),
+            MaxValueValidator(90)
+        ]
+    )
+    longitude = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6,
+        validators=[
+            MinValueValidator(-180),
+            MaxValueValidator(180)
+        ]
+    )
+    
+    # Address components
+    formatted_address = models.TextField(blank=True)
+    street = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100, blank=True)
-    county = models.CharField(max_length=100, blank=True)  # Kenya-specific
+    county = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, default='Kenya')
+    postal_code = models.CharField(max_length=20, blank=True)
     
-    # GPS coordinates using PostGIS
-    coordinates = gis_models.PointField(
-        geography=True,
-        blank=True,
-        null=True,
-        help_text="Longitude/Latitude Point"
+    # Metadata
+    is_primary = models.BooleanField(default=False)
+    location_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('home', 'Home'),
+            ('work', 'Work'),
+            ('emergency', 'Emergency'),
+            ('current', 'Current Location'),
+            ('other', 'Other')
+        ],
+        default='current'
     )
-    
-    # Accuracy metadata
-    accuracy = models.FloatField(
-        null=True, 
-        blank=True,
-        help_text="GPS accuracy in meters"
-    )
-    altitude = models.FloatField(null=True, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    timestamp = models.DateTimeField(
-        help_text="When this location was recorded"
-    )
-    
-    # Source of location data
-    SOURCE_CHOICES = [
-        ('gps', 'GPS'),
-        ('network', 'Network'),
-        ('manual', 'Manual Entry'),
-        ('emergency', 'Emergency Alert'),
-    ]
-    source = models.CharField(
-        max_length=20, 
-        choices=SOURCE_CHOICES, 
-        default='gps'
-    )
-    
-    # For emergency context
-    emergency_alert = models.ForeignKey(
-        'emergencies.EmergencyAlert',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='locations'
-    )
     
     class Meta:
         db_table = 'geolocation_locations'
         indexes = [
-            models.Index(fields=['user', 'timestamp']),
-            models.Index(fields=['timestamp']),
-            gis_models.Index(fields=['coordinates']),
+            models.Index(fields=['latitude', 'longitude']),
+            models.Index(fields=['user', 'is_primary']),
         ]
-        ordering = ['-timestamp']
+        ordering = ['-is_primary', '-created_at']
     
     def __str__(self):
-        if self.user:
-            return f"{self.user.email} - {self.timestamp}"
-        return f"Location {self.id} - {self.timestamp}"
-    
-    @property
-    def latitude(self):
-        return self.coordinates.y if self.coordinates else None
-    
-    @property
-    def longitude(self):
-        return self.coordinates.x if self.coordinates else None
-    
-    def to_geojson(self):
-        """Convert location to GeoJSON format"""
-        return {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [self.longitude, self.latitude]
-            },
-            "properties": {
-                "id": self.id,
-                "name": self.name,
-                "address": self.address,
-                "timestamp": self.timestamp.isoformat(),
-                "accuracy": self.accuracy
-            }
-        }
+        return f"{self.latitude}, {self.longitude} - {self.formatted_address}"
 
 
-class GeoFence(models.Model):
+class HospitalLocation(models.Model):
     """
-    Define geographical boundaries for hospitals, zones, etc.
+    Extended location model specifically for hospitals with additional emergency-related fields
     """
-    name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    
-    # Polygon defining the geofence boundary
-    boundary = gis_models.PolygonField()
-    
-    # Geofence type
-    TYPE_CHOICES = [
-        ('hospital', 'Hospital Zone'),
-        ('emergency', 'Emergency Zone'),
-        ('restricted', 'Restricted Area'),
-        ('custom', 'Custom Zone'),
-    ]
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='custom')
-    
-    # Associated hospital (if applicable)
-    hospital = models.ForeignKey(
-        'hospitals.Hospital',
+    location = models.OneToOneField(
+        Location,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='geofences'
+        related_name='hospital_location'
     )
     
-    radius = models.FloatField(
-        null=True,
-        blank=True,
-        help_text="Radius in meters for circular geofences"
-    )
+    # Hospital-specific location data
+    place_id = models.CharField(max_length=255, unique=True, blank=True)
+    google_maps_url = models.URLField(blank=True)
+    accessibility_notes = models.TextField(blank=True)
+    entrance_instructions = models.TextField(blank=True)
     
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Emergency service accessibility
+    has_ambulance_bay = models.BooleanField(default=False)
+    emergency_entrance_coordinates = models.CharField(max_length=100, blank=True)
     
     class Meta:
-        db_table = 'geolocation_geofences'
+        db_table = 'geolocation_hospital_locations'
     
     def __str__(self):
-        return f"{self.name} ({self.type})"
+        return f"Hospital Location: {self.location.formatted_address}"
 
 
-class LocationLog(models.Model):
-    """
-    Audit log for location changes and queries
-    """
-    user = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True
-    )
-    action = models.CharField(max_length=50)  # 'create', 'update', 'query', 'geocode'
-    details = models.JSONField(default=dict)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'geolocation_location_logs'
-        ordering = ['-created_at']
