@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'channels',
     'accounts',
     'geolocation',
+    'emergencies',
 
 ]
 
