@@ -1,4 +1,3 @@
-# apps/hospital_comms/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -23,6 +22,7 @@ from .serializers import (
     CommunicationLogSerializer
 )
 from .services import HospitalCommunicationService, HospitalResponseService
+# Update permissions import to use correct path
 from accounts.permissions import IsFirstAider, IsHospitalStaff, IsSystemAdmin
 
 class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
@@ -45,10 +45,10 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Filter based on user role
-        if user.role == 'first_aider':
+        # Filter based on user type (using user_type instead of role)
+        if user.user_type == 'first_aider':
             queryset = queryset.filter(first_aider=user)
-        elif user.role == 'hospital_admin':
+        elif user.user_type == 'hospital_admin':
             queryset = queryset.filter(hospital__admins=user)
         
         # Additional filters
@@ -271,9 +271,10 @@ class CommunicationLogViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        if user.role == 'first_aider':
+        # Use user_type instead of role
+        if user.user_type == 'first_aider':
             queryset = queryset.filter(communication__first_aider=user)
-        elif user.role == 'hospital_admin':
+        elif user.user_type == 'hospital_admin':
             queryset = queryset.filter(communication__hospital__admins=user)
         
         return queryset.select_related('communication')
@@ -290,7 +291,8 @@ class FirstAiderAssessmentViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        if user.role == 'first_aider':
+        # Use user_type instead of role
+        if user.user_type == 'first_aider':
             queryset = queryset.filter(communication__first_aider=user)
         
         return queryset.select_related('communication')
