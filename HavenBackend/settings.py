@@ -153,6 +153,9 @@ GOOGLE_MAPS_CACHE_TIMEOUT = 3600  # 1 hour
 
 GEOIP_PATH = BASE_DIR / 'geoip'
 
-
+# Add medical-specific settings
+MEDICAL_DATA_ENCRYPTION_KEY = config('MEDICAL_DATA_ENCRYPTION_KEY', default='your-encryption-key')
+FHIR_API_ENABLED = config('FHIR_API_ENABLED', default=True)
+MEDICAL_DATA_RETENTION_DAYS = config('MEDICAL_DATA_RETENTION_DAYS', default=3650)  # 10 years
 
 
