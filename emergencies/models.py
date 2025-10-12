@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 
 # Create your models here.
@@ -39,6 +40,9 @@ class EmergencyAlert(models.Model):
         ('pediatric', 'Pediatric Emergency'),
         ('other', 'Other'),
     ]
+
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Core alert information
     user = models.ForeignKey(

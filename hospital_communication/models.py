@@ -1,9 +1,10 @@
+import uuid
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from apps.accounts.models import User
-from apps.hospitals.models import Hospital
-from apps.emergencies.models import EmergencyAlert
-from apps.medical.models import MedicalProfile
+from accounts.models import CustomUser as User
+from hospitals.models import Hospital
+from emergencies.models import EmergencyAlert
+from medical.models import MedicalProfile
 
 
 class EmergencyHospitalCommunication(models.Model):
@@ -30,12 +31,11 @@ class EmergencyHospitalCommunication(models.Model):
         ('low', 'Low'),
     ]
 
-    # Core relationships
-    emergency_alert = models.OneToOneField(
-        EmergencyAlert,
-        on_delete=models.CASCADE,
-        related_name='hospital_communication'
-    )
+    # Core relationships - FIXED: Explicitly define the foreign key as UUID
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Use CharField to store the EmergencyAlert's UUID and handle the relationship manually
+    emergency_alert_id = models.UUIDField(editable=False, db_index=True)
     hospital = models.ForeignKey(
         Hospital,
         on_delete=models.CASCADE,
@@ -47,6 +47,9 @@ class EmergencyHospitalCommunication(models.Model):
         related_name='sent_communications',
         limit_choices_to={'role': 'first_aider'}
     )
+    
+    # Store the alert_id as a separate field for easy reference
+    alert_reference_id = models.CharField(max_length=20, blank=True, db_index=True)
     
     # Communication details
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -106,14 +109,40 @@ class EmergencyHospitalCommunication(models.Model):
     class Meta:
         db_table = 'emergency_hospital_communications'
         indexes = [
-            models.Index(fields=['emergency_alert', 'hospital']),
+            models.Index(fields=['emergency_alert_id']),
+            models.Index(fields=['alert_reference_id']),
             models.Index(fields=['status', 'priority']),
             models.Index(fields=['created_at']),
         ]
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Comm: {self.emergency_alert.alert_id} -> {self.hospital.name}"
+        return f"Comm: {self.alert_reference_id} -> {self.hospital.name}"
+
+    @property
+    def emergency_alert(self):
+        """Property to get the related EmergencyAlert"""
+        try:
+            return EmergencyAlert.objects.get(id=self.emergency_alert_id)
+        except EmergencyAlert.DoesNotExist:
+            return None
+
+    @emergency_alert.setter
+    def emergency_alert(self, value):
+        """Property setter for EmergencyAlert"""
+        if value:
+            self.emergency_alert_id = value.id
+            self.alert_reference_id = value.alert_id
+
+    def save(self, *args, **kwargs):
+        # Store the alert_id for easy reference
+        if self.emergency_alert_id and not self.alert_reference_id:
+            try:
+                alert = EmergencyAlert.objects.get(id=self.emergency_alert_id)
+                self.alert_reference_id = alert.alert_id
+            except EmergencyAlert.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
 
 
 class CommunicationLog(models.Model):
