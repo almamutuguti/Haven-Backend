@@ -12,7 +12,7 @@ from .models import (
     FirstAiderAssessment
 )
 from hospitals.models import Hospital
-# from notifications.services import SMSService
+from notifications.services import SMSService
 
 logger = logging.getLogger(__name__)
 
