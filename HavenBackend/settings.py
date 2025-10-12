@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'hospitals',
     'medical',
     'hospital_communication',
+    'notifications',
 
 ]
 
