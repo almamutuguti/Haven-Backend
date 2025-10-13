@@ -1,29 +1,27 @@
 from django.urls import path
 from . import views
 
-
-
 urlpatterns = [
     # Discovery endpoints
-    path('nearby/', views.discover_nearby_hospitals, name='nearby-hospitals'),
-    path('search/', views.search_hospitals, name='search-hospitals'),
+    path('nearby/', views.DiscoverNearbyHospitalsAPIView.as_view(), name='nearby-hospitals'),
+    path('search/', views.SearchHospitalsAPIView.as_view(), name='search-hospitals'),
     
     # Hospital details and capabilities
-    path('<int:hospital_id>/', views.get_hospital_details, name='hospital-details'),
-    path('<int:hospital_id>/capabilities/', views.get_hospital_capabilities, name='hospital-capabilities'),
-    path('<int:hospital_id>/availability/', views.check_hospital_availability, name='hospital-availability'),
-    path('<int:hospital_id>/statistics/', views.get_hospital_statistics, name='hospital-statistics'),
+    path('<int:hospital_id>/', views.HospitalDetailAPIView.as_view(), name='hospital-details'),
+    path('<int:hospital_id>/capabilities/', views.HospitalCapabilitiesAPIView.as_view(), name='hospital-capabilities'),
+    path('<int:hospital_id>/availability/', views.CheckHospitalAvailabilityAPIView.as_view(), name='hospital-availability'),
+    path('<int:hospital_id>/statistics/', views.HospitalStatisticsAPIView.as_view(), name='hospital-statistics'),
     
     # Matching endpoints
-    path('matching/', views.match_hospitals_for_emergency, name='hospital-matching'),
-    path('<int:hospital_id>/fallbacks/', views.get_fallback_hospitals, name='fallback-hospitals'),
+    path('matching/', views.MatchHospitalsForEmergencyAPIView.as_view(), name='hospital-matching'),
+    path('<int:hospital_id>/fallbacks/', views.GetFallbackHospitalsAPIView.as_view(), name='fallback-hospitals'),
     
     # Communication endpoints
-    path('<int:hospital_id>/alert/', views.send_hospital_alert, name='hospital-alert'),
-    path('comms/status/<str:alert_id>/', views.get_communication_status, name='communication-status'),
-    path('comms/fallback/', views.activate_fallback_communication, name='fallback-communication'),
+    path('<int:hospital_id>/alert/', views.SendHospitalAlertAPIView.as_view(), name='hospital-alert'),
+    path('comms/status/<str:alert_id>/', views.GetCommunicationStatusAPIView.as_view(), name='communication-status'),
+    path('comms/fallback/', views.ActivateFallbackCommunicationAPIView.as_view(), name='fallback-communication'),
     
     # Ratings endpoints
-    path('ratings/', views.hospital_ratings, name='all-ratings'),
-    path('<int:hospital_id>/ratings/', views.hospital_ratings, name='hospital-ratings'),
+    path('ratings/', views.HospitalRatingListCreateAPIView.as_view(), name='all-ratings'),
+    path('<int:hospital_id>/ratings/', views.HospitalRatingDetailAPIView.as_view(), name='hospital-ratings'),
 ]

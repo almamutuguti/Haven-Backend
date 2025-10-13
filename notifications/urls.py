@@ -15,46 +15,46 @@ urlpatterns = [
     path('api/notifications/', include(router.urls)),
 ]
 
-# Additional custom endpoints
+# Additional custom endpoints using class-based views
 urlpatterns += [
     path(
         'api/notifications/notifications/mark-all-read/',
-        views.NotificationViewSet.as_view({'post': 'mark_all_as_read'}),
+        views.MarkAllNotificationsReadAPIView.as_view(),
         name='mark-all-notifications-read'
     ),
     path(
         'api/notifications/notifications/unread-count/',
-        views.NotificationViewSet.as_view({'get': 'unread_count'}),
+        views.UnreadNotificationsCountAPIView.as_view(),
         name='unread-notifications-count'
     ),
     path(
         'api/notifications/notifications/send-bulk/',
-        views.NotificationViewSet.as_view({'post': 'send_bulk'}),
+        views.SendBulkNotificationsAPIView.as_view(),
         name='send-bulk-notifications'
     ),
     path(
         'api/notifications/notifications/stats/',
-        views.NotificationViewSet.as_view({'get': 'stats'}),
+        views.NotificationStatsAPIView.as_view(),
         name='notification-stats'
     ),
     path(
         'api/notifications/notifications/<uuid:pk>/mark-read/',
-        views.NotificationViewSet.as_view({'post': 'mark_as_read'}),
+        views.MarkNotificationReadAPIView.as_view(),
         name='mark-notification-read'
     ),
     path(
         'api/notifications/preferences/quick-toggle/',
-        views.UserNotificationPreferenceViewSet.as_view({'post': 'quick_toggle'}),
+        views.NotificationPreferenceToggleAPIView.as_view(),
         name='notification-preference-toggle'
     ),
     path(
         'api/notifications/templates/<uuid:pk>/test/',
-        views.NotificationTemplateViewSet.as_view({'post': 'test'}),
+        views.TestNotificationTemplateAPIView.as_view(),
         name='test-notification-template'
     ),
     path(
         'api/notifications/admin-notifications/system-stats/',
-        views.AdminNotificationViewSet.as_view({'get': 'system_stats'}),
+        views.AdminNotificationStatsAPIView.as_view(),
         name='admin-notification-stats'
     ),
 ]

@@ -1,7 +1,6 @@
 import logging
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics, status, permissions
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
@@ -17,240 +16,251 @@ from .services import AlertService, EmergencyOrchestrator, VerificationService
 logger = logging.getLogger(__name__)
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def trigger_emergency_alert(request):
+class TriggerEmergencyAlertAPIView(APIView):
     """
     Trigger a new emergency alert
-    POST /api/v1/emergency/alert
+    POST /api/emergency/alert/
     """
-    serializer = EmergencyAlertCreateSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [permissions.IsAuthenticated]
     
-    try:
-        data = serializer.validated_data
+    def post(self, request):
+        serializer = EmergencyAlertCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create emergency alert
-        alert = AlertService.create_emergency_alert(
-            user=request.user,
-            emergency_type=data['emergency_type'],
-            latitude=data['latitude'],
-            longitude=data['longitude'],
-            description=data.get('description', ''),
-            address=data.get('address', ''),
-            location_id=data.get('location_id')
-        )
-        
-        if not alert:
+        try:
+            data = serializer.validated_data
+            
+            # Create emergency alert
+            alert = AlertService.create_emergency_alert(
+                user=request.user,
+                emergency_type=data['emergency_type'],
+                latitude=data['latitude'],
+                longitude=data['longitude'],
+                description=data.get('description', ''),
+                address=data.get('address', ''),
+                location_id=data.get('location_id')
+            )
+            
+            if not alert:
+                return Response(
+                    {'error': 'Failed to create emergency alert'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            # Process the emergency asynchronously (in production, use Celery)
+            EmergencyOrchestrator.process_emergency_alert(alert.alert_id)
+            
+            # Return alert data
+            alert_serializer = EmergencyAlertSerializer(alert)
+            return Response(alert_serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Emergency alert trigger failed: {str(e)}")
             return Response(
-                {'error': 'Failed to create emergency alert'},
+                {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        # Process the emergency asynchronously (in production, use Celery)
-        EmergencyOrchestrator.process_emergency_alert(alert.alert_id)
-        
-        # Return alert data
-        alert_serializer = EmergencyAlertSerializer(alert)
-        return Response(alert_serializer.data, status=status.HTTP_201_CREATED)
-        
-    except Exception as e:
-        logger.error(f"Emergency alert trigger failed: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_alert_status(request, alert_id):
+class AlertStatusAPIView(APIView):
     """
     Get emergency alert status
-    GET /api/v1/emergency/{alert_id}/status
+    GET /api/emergency/{alert_id}/status/
     """
-    try:
-        alert = get_object_or_404(EmergencyAlert, alert_id=alert_id, user=request.user)
-        serializer = EmergencyAlertSerializer(alert)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        logger.error(f"Failed to get alert status: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, alert_id):
+        try:
+            alert = get_object_or_404(EmergencyAlert, alert_id=alert_id, user=request.user)
+            serializer = EmergencyAlertSerializer(alert)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Failed to get alert status: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
-def update_alert_location(request, alert_id):
+class UpdateAlertLocationAPIView(APIView):
     """
     Update emergency alert location
-    PUT /api/v1/emergency/{alert_id}/location
+    PUT /api/emergency/{alert_id}/location/
     """
-    serializer = LocationUpdateSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [permissions.IsAuthenticated]
     
-    try:
-        data = serializer.validated_data
+    def put(self, request, alert_id):
+        serializer = LocationUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        success = AlertService.update_alert_location(
-            alert_id=alert_id,
-            latitude=data['latitude'],
-            longitude=data['longitude'],
-            address=data.get('address', '')
-        )
-        
-        if not success:
-            return Response(
-                {'error': 'Failed to update alert location'},
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            data = serializer.validated_data
+            
+            success = AlertService.update_alert_location(
+                alert_id=alert_id,
+                latitude=data['latitude'],
+                longitude=data['longitude'],
+                address=data.get('address', '')
             )
-        
-        return Response({'message': 'Location updated successfully'})
-        
-    except Exception as e:
-        logger.error(f"Location update failed: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+            
+            if not success:
+                return Response(
+                    {'error': 'Failed to update alert location'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({'message': 'Location updated successfully'})
+            
+        except Exception as e:
+            logger.error(f"Location update failed: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def cancel_emergency_alert(request, alert_id):
+class CancelEmergencyAlertAPIView(APIView):
     """
     Cancel emergency alert
-    POST /api/v1/emergency/{alert_id}/cancel
+    POST /api/emergency/{alert_id}/cancel/
     """
-    serializer = CancelEmergencySerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [permissions.IsAuthenticated]
     
-    try:
-        data = serializer.validated_data
+    def post(self, request, alert_id):
+        serializer = CancelEmergencySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        success = AlertService.cancel_emergency_alert(
-            alert_id=alert_id,
-            user=request.user,
-            reason=data.get('reason', '')
-        )
-        
-        if not success:
-            return Response(
-                {'error': 'Failed to cancel emergency alert'},
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            data = serializer.validated_data
+            
+            success = AlertService.cancel_emergency_alert(
+                alert_id=alert_id,
+                user=request.user,
+                reason=data.get('reason', '')
             )
-        
-        return Response({'message': 'Emergency alert cancelled successfully'})
-        
-    except Exception as e:
-        logger.error(f"Emergency cancellation failed: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+            
+            if not success:
+                return Response(
+                    {'error': 'Failed to cancel emergency alert'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({'message': 'Emergency alert cancelled successfully'})
+            
+        except Exception as e:
+            logger.error(f"Emergency cancellation failed: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_emergency_history(request):
+class EmergencyHistoryAPIView(APIView):
     """
     Get user's emergency history
-    GET /api/v1/emergency/history
+    GET /api/emergency/history/
     """
-    try:
-        limit = int(request.GET.get('limit', 50))
-        alerts = AlertService.get_user_emergency_history(request.user, limit)
-        
-        serializer = EmergencyAlertSerializer(alerts, many=True)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        logger.error(f"Failed to get emergency history: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            limit = int(request.GET.get('limit', 50))
+            alerts = AlertService.get_user_emergency_history(request.user, limit)
+            
+            serializer = EmergencyAlertSerializer(alerts, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Failed to get emergency history: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_emergency_updates(request, alert_id):
+class EmergencyUpdatesAPIView(APIView):
     """
     Get updates for a specific emergency alert
+    GET /api/emergency/{alert_id}/updates/
     """
-    try:
-        alert = get_object_or_404(EmergencyAlert, alert_id=alert_id, user=request.user)
-        updates = EmergencyUpdate.objects.filter(alert=alert).order_by('-created_at')
-        
-        serializer = EmergencyUpdateSerializer(updates, many=True)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        logger.error(f"Failed to get emergency updates: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, alert_id):
+        try:
+            alert = get_object_or_404(EmergencyAlert, alert_id=alert_id, user=request.user)
+            updates = EmergencyUpdate.objects.filter(alert=alert).order_by('-created_at')
+            
+            serializer = EmergencyUpdateSerializer(updates, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Failed to get emergency updates: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def verify_emergency_alert(request, alert_id):
+class VerifyEmergencyAlertAPIView(APIView):
     """
     Verify emergency alert with code
+    POST /api/emergency/{alert_id}/verify/
     """
-    serializer = VerificationCodeSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [permissions.IsAuthenticated]
     
-    try:
-        data = serializer.validated_data
+    def post(self, request, alert_id):
+        serializer = VerificationCodeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        success = VerificationService.verify_code(alert_id, data['verification_code'])
-        
-        if not success:
+        try:
+            data = serializer.validated_data
+            
+            success = VerificationService.verify_code(alert_id, data['verification_code'])
+            
+            if not success:
+                return Response(
+                    {'error': 'Invalid verification code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({'message': 'Emergency alert verified successfully'})
+            
+        except Exception as e:
+            logger.error(f"Verification failed: {str(e)}")
             return Response(
-                {'error': 'Invalid verification code'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        return Response({'message': 'Emergency alert verified successfully'})
-        
-    except Exception as e:
-        logger.error(f"Verification failed: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_active_emergencies(request):
+class ActiveEmergenciesAPIView(APIView):
     """
     Get all active emergencies (for hospital/admin use)
+    GET /api/emergency/active/
     """
-    try:
-        # In production, add proper role-based permissions
-        if not request.user.is_staff:
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Check if user has permission to view all active emergencies
+            if not request.user.user_type in ['system_admin', 'hospital_admin']:
+                return Response(
+                    {'error': 'Permission denied'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            alerts = AlertService.get_active_emergencies()
+            serializer = EmergencyAlertSerializer(alerts, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Failed to get active emergencies: {str(e)}")
             return Response(
-                {'error': 'Permission denied'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        alerts = AlertService.get_active_emergencies()
-        serializer = EmergencyAlertSerializer(alerts, many=True)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        logger.error(f"Failed to get active emergencies: {str(e)}")
-        return Response(
-            {'error': 'Internal server error'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )

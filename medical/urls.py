@@ -1,37 +1,35 @@
 from django.urls import path
 from . import views
 
-
-
 urlpatterns = [
     # Medical Profile Management
-    path('', views.medical_profile_management, name='medical-profile'),
-    path('emergency-data/', views.get_emergency_data_packet, name='emergency-data'),
-    path('fhir-data/', views.get_fhir_data, name='fhir-data'),
-    path('emergency-summary/', views.get_emergency_summary, name='emergency-summary'),
+    path('profile/', views.MedicalProfileAPIView.as_view(), name='medical-profile'),
+    path('profile/emergency-data/', views.EmergencyDataPacketAPIView.as_view(), name='emergency-data'),
+    path('profile/fhir-data/', views.FHIRDataAPIView.as_view(), name='fhir-data'),
+    path('profile/emergency-summary/', views.EmergencySummaryAPIView.as_view(), name='emergency-summary'),
     
     # Medical Conditions
-    path('conditions/', views.medical_conditions_management, name='medical-conditions'),
-    path('conditions/<int:condition_id>/', views.medical_condition_detail, name='medical-condition-detail'),
+    path('profile/conditions/', views.MedicalConditionListCreateAPIView.as_view(), name='medical-conditions'),
+    path('profile/conditions/<int:pk>/', views.MedicalConditionDetailAPIView.as_view(), name='medical-condition-detail'),
     
     # Allergies
-    path('allergies/', views.allergies_management, name='allergies'),
-    path('allergies/<int:allergy_id>/', views.allergies_management, name='allergy-detail'),
+    path('profile/allergies/', views.AllergyListCreateAPIView.as_view(), name='allergies'),
+    path('profile/allergies/<int:pk>/', views.AllergyDetailAPIView.as_view(), name='allergy-detail'),
     
     # Medications
-    path('medications/', views.medications_management, name='medications'),
-    path('medications/<int:medication_id>/', views.medications_management, name='medication-detail'),
+    path('profile/medications/', views.MedicationListCreateAPIView.as_view(), name='medications'),
+    path('profile/medications/<int:pk>/', views.MedicationDetailAPIView.as_view(), name='medication-detail'),
     
     # Emergency Contacts
-    path('contacts/', views.emergency_contacts_management, name='emergency-contacts'),
-    path('contacts/<int:contact_id>/', views.emergency_contacts_management, name='emergency-contact-detail'),
-    path('contacts/<int:contact_id>/primary/', views.set_primary_contact, name='set-primary-contact'),
+    path('profile/contacts/', views.EmergencyContactListCreateAPIView.as_view(), name='emergency-contacts'),
+    path('profile/contacts/<int:pk>/', views.EmergencyContactDetailAPIView.as_view(), name='emergency-contact-detail'),
+    path('profile/contacts/<int:contact_id>/primary/', views.SetPrimaryContactAPIView.as_view(), name='set-primary-contact'),
     
     # Insurance Information
-    path('insurance/', views.insurance_management, name='insurance'),
-    path('insurance/<int:insurance_id>/', views.insurance_management, name='insurance-detail'),
+    path('profile/insurance/', views.InsuranceListCreateAPIView.as_view(), name='insurance'),
+    path('profile/insurance/<int:pk>/', views.InsuranceDetailAPIView.as_view(), name='insurance-detail'),
     
     # Surgical History
-    path('surgical-history/', views.surgical_history_management, name='surgical-history'),
-    path('surgical-history/<int:surgery_id>/', views.surgical_history_management, name='surgery-detail'),
+    path('profile/surgical-history/', views.SurgicalHistoryListCreateAPIView.as_view(), name='surgical-history'),
+    path('profile/surgical-history/<int:pk>/', views.SurgicalHistoryDetailAPIView.as_view(), name='surgery-detail'),
 ]

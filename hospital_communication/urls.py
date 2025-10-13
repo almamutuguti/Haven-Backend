@@ -23,41 +23,41 @@ urlpatterns = [
     path('api/hospital-comms/', include(router.urls)),
 ]
 
-# Additional custom endpoints
+# Additional custom endpoints using class-based views
 urlpatterns += [
     path(
-        'api/hospital-comms/communications/<uuid:pk>/acknowledge/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'acknowledge'}),
-        name='acknowledge-communication'
-    ),
-    path(
-        'api/hospital-comms/communications/<uuid:pk>/update-preparation/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'update_preparation'}),
-        name='update-preparation'
-    ),
-    path(
-        'api/hospital-comms/communications/<uuid:pk>/add-assessment/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'add_assessment'}),
-        name='add-assessment'
-    ),
-    path(
-        'api/hospital-comms/communications/<uuid:pk>/update-status/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'update_status'}),
-        name='update-status'
-    ),
-    path(
-        'api/hospital-comms/communications/<uuid:pk>/logs/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'logs'}),
-        name='communication-logs'
-    ),
-    path(
         'api/hospital-comms/communications/hospital-pending/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'hospital_pending'}),
+        views.HospitalPendingCommunicationsAPIView.as_view(),
         name='hospital-pending'
     ),
     path(
         'api/hospital-comms/communications/first-aider-active/',
-        views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'first_aider_active'}),
+        views.FirstAiderActiveCommunicationsAPIView.as_view(),
         name='first-aider-active'
+    ),
+    path(
+        'api/hospital-comms/communications/<uuid:pk>/acknowledge/',
+        views.AcknowledgeCommunicationAPIView.as_view(),
+        name='acknowledge-communication'
+    ),
+    path(
+        'api/hospital-comms/communications/<uuid:pk>/update-preparation/',
+        views.UpdatePreparationAPIView.as_view(),
+        name='update-preparation'
+    ),
+    path(
+        'api/hospital-comms/communications/<uuid:pk>/add-assessment/',
+        views.AddAssessmentAPIView.as_view(),
+        name='add-assessment'
+    ),
+    path(
+        'api/hospital-comms/communications/<uuid:pk>/update-status/',
+        views.UpdateStatusAPIView.as_view(),
+        name='update-status'
+    ),
+    path(
+        'api/hospital-comms/communications/<uuid:pk>/logs/',
+        views.CommunicationLogsAPIView.as_view(),
+        name='communication-logs'
     ),
 ]
