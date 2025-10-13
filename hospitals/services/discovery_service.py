@@ -104,7 +104,7 @@ class DiscoveryService:
             'address': hospital.location.location.formatted_address,
             'latitude': float(hospital.location.location.latitude),
             'longitude': float(hospital.location.location.longitude),
-            'phone_number': hospital.phone_number,
+            'phone': hospital.phone,
             'emergency_phone': hospital.emergency_phone,
             'is_verified': hospital.is_verified,
             'specialties': [

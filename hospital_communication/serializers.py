@@ -110,9 +110,9 @@ class EmergencyHospitalCommunicationDetailSerializer(serializers.ModelSerializer
     """Detailed serializer with nested relationships"""
     hospital_name = serializers.CharField(source='hospital.name', read_only=True)
     hospital_address = serializers.CharField(source='hospital.address', read_only=True)
-    hospital_phone = serializers.CharField(source='hospital.phone_number', read_only=True)
+    hospital_phone = serializers.CharField(source='hospital.phone', read_only=True)
     first_aider_name = serializers.CharField(source='first_aider.get_full_name', read_only=True)
-    first_aider_phone = serializers.CharField(source='first_aider.phone_number', read_only=True)
+    first_aider_phone = serializers.CharField(source='first_aider.phone', read_only=True)
     
     # Nested serializers
     assessment = FirstAiderAssessmentSerializer(

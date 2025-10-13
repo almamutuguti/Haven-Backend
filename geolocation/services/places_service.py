@@ -93,7 +93,7 @@ class PlacesService:
             url = 'https://maps.googleapis.com/maps/api/place/details/json'
             params = {
                 'place_id': place_id,
-                'fields': 'name,formatted_address,geometry,rating,user_ratings_total,formatted_phone_number,website,opening_hours,types',
+                'fields': 'name,formatted_address,geometry,rating,user_ratings_total,formatted_phone,website,opening_hours,types',
                 'key': settings.GOOGLE_MAPS_API_KEY
             }
             

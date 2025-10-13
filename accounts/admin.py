@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
     
     list_display = ('badge_number', 'username', 'email', 'role', 'is_staff', 'is_active')
     list_filter = ('role', 'is_staff', 'is_superuser', 'is_active')
-    search_fields = ('badge_number', 'username', 'email', 'phone_number', 'first_name', 'last_name')
+    search_fields = ('badge_number', 'username', 'email', 'phone', 'first_name', 'last_name')
     ordering = ('badge_number',)
     
     fieldsets = (
@@ -26,7 +26,7 @@ class CustomUserAdmin(UserAdmin):
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
         (_('Haven Specific'), {
             'fields': (
-                'role', 'phone_number', 'registration_number',
+                'role', 'phone', 'registration_number',
                 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),
@@ -39,7 +39,7 @@ class CustomUserAdmin(UserAdmin):
         }),
         (_('Haven Specific'), {
             'fields': (
-                'role', 'email', 'phone_number', 'first_name', 'last_name',
+                'role', 'email', 'phone', 'first_name', 'last_name',
                 'registration_number', 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),

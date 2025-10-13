@@ -26,7 +26,7 @@ class MedicationInline(admin.TabularInline):
 class EmergencyContactInline(admin.TabularInline):
     model = EmergencyContact
     extra = 1
-    fields = ['full_name', 'relationship', 'phone_number', 'is_primary']
+    fields = ['full_name', 'relationship', 'phone', 'is_primary']
 
 
 class InsuranceInformationInline(admin.TabularInline):
@@ -118,11 +118,11 @@ class MedicationAdmin(admin.ModelAdmin):
 @admin.register(EmergencyContact)
 class EmergencyContactAdmin(admin.ModelAdmin):
     list_display = [
-        'medical_profile', 'full_name', 'relationship', 'phone_number',
+        'medical_profile', 'full_name', 'relationship', 'phone',
         'is_primary', 'can_make_medical_decisions', 'created_at'
     ]
     list_filter = ['relationship', 'is_primary', 'can_make_medical_decisions', 'created_at']
-    search_fields = ['medical_profile__user__email', 'full_name', 'phone_number']
+    search_fields = ['medical_profile__user__email', 'full_name', 'phone']
     readonly_fields = ['created_at', 'updated_at']
     list_select_related = ['medical_profile', 'medical_profile__user']
 

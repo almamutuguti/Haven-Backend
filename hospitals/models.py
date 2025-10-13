@@ -31,7 +31,7 @@ class Hospital(models.Model):
     level = models.CharField(max_length=20, choices=HOSPITAL_LEVEL_CHOICES, default='level_2')
     
     # Contact Information
-    phone_number = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
     emergency_phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
     website = models.URLField(blank=True)

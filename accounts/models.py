@@ -21,6 +21,7 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'system_admin')
+        extra_fields.setdefault('phone', '+254700000000')  # Dummy phone for superuser
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
@@ -59,7 +60,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
     
     # Contact methods (phone optional)
-    phone_number = models.CharField(
+    phone = models.CharField(
         validators=[phone_regex], 
         max_length=17, 
         unique=True, 

@@ -287,7 +287,7 @@ class EmergencyContact(models.Model):
     # Contact information
     full_name = models.CharField(max_length=255)
     relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES, default='family')
-    phone_number = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20)
     alternate_phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True)

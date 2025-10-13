@@ -68,8 +68,8 @@ class SMSService(BaseNotificationService):
         """Send SMS via Africa's Talking"""
         try:
             # Get user's phone number
-            phone_number = notification.user.phone_number
-            if not phone_number:
+            phone = notification.user.phone
+            if not phone:
                 logger.error(f"No phone number for user: {notification.user.id}")
                 return False
             
@@ -87,7 +87,7 @@ class SMSService(BaseNotificationService):
             
             data = {
                 'username': self.username,
-                'to': phone_number,
+                'to': phone,
                 'message': notification.message,
                 'from': getattr(settings, 'SMS_SENDER_ID', 'HAVEN')
             }
@@ -128,7 +128,7 @@ class SMSService(BaseNotificationService):
                 if recipients:
                     recipient = recipients[0]
                     log_data = {
-                        'phone_number': recipient.get('number'),
+                        'phone': recipient.get('number'),
                         'message': notification.message,
                         'message_id': recipient.get('messageId', ''),
                         'provider_message_id': recipient.get('messageId', ''),
@@ -348,7 +348,7 @@ class VoiceCallService(BaseNotificationService):
             
             # In a real implementation, you'd integrate with a voice service like Africa's Talking Voice
             # or Twilio
-            logger.info(f"Voice call would be sent to {notification.user.phone_number}")
+            logger.info(f"Voice call would be sent to {notification.user.phone}")
             
             # For now, mark as sent (simulate success)
             notification.mark_as_sent()

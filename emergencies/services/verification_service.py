@@ -49,7 +49,7 @@ class VerificationService:
             )
             
             # Send SMS (mock implementation for now)
-            user_phone = alert.user.phone_number  # Assuming user has phone_number field
+            user_phone = alert.user.phone  # Assuming user has phone field
             message = f"Emergency alert verification code: {verification_code}. Reply with this code to confirm your emergency."
             
             # TODO: Integrate with actual SMS service

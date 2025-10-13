@@ -19,7 +19,7 @@ class NotificationAdmin(admin.ModelAdmin):
         'priority', 'created_at', 'notification_actions'
     ]
     list_filter = ['status', 'notification_type', 'channel', 'priority', 'created_at']
-    search_fields = ['user__email', 'user__phone_number', 'title', 'message']
+    search_fields = ['user__email', 'user__phone', 'title', 'message']
     readonly_fields = ['created_at', 'sent_at', 'delivered_at', 'read_at']
     date_hierarchy = 'created_at'
     
@@ -123,9 +123,9 @@ class NotificationTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(SMSLog)
 class SMSLogAdmin(admin.ModelAdmin):
-    list_display = ['phone_number', 'status', 'cost', 'sent_at', 'delivered_at']
+    list_display = ['phone', 'status', 'cost', 'sent_at', 'delivered_at']
     list_filter = ['status', 'provider', 'sent_at']
-    search_fields = ['phone_number', 'message', 'message_id']
+    search_fields = ['phone', 'message', 'message_id']
     readonly_fields = ['sent_at', 'delivered_at']
     date_hierarchy = 'sent_at'
     
@@ -156,7 +156,7 @@ class EmailLogAdmin(admin.ModelAdmin):
 class UserNotificationPreferenceAdmin(admin.ModelAdmin):
     list_display = ['user', 'push_enabled', 'sms_enabled', 'email_enabled', 'updated_at']
     list_filter = ['push_enabled', 'sms_enabled', 'email_enabled', 'voice_enabled', 'updated_at']
-    search_fields = ['user__email', 'user__phone_number']
+    search_fields = ['user__email', 'user__phone']
     readonly_fields = ['updated_at']
     
     fieldsets = (

@@ -63,7 +63,7 @@ class EmergencyContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmergencyContact
         fields = [
-            'id', 'full_name', 'relationship', 'relationship_display', 'phone_number',
+            'id', 'full_name', 'relationship', 'relationship_display', 'phone',
             'alternate_phone', 'email', 'address', 'is_primary',
             'can_make_medical_decisions', 'notes', 'created_at', 'updated_at'
         ]
@@ -240,7 +240,7 @@ class EmergencyContactCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmergencyContact
         fields = [
-            'full_name', 'relationship', 'phone_number', 'alternate_phone', 'email',
+            'full_name', 'relationship', 'phone', 'alternate_phone', 'email',
             'address', 'is_primary', 'can_make_medical_decisions', 'notes'
         ]
 

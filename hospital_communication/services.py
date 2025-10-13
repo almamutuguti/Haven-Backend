@@ -67,7 +67,7 @@ class HospitalCommunicationService:
             channels.append('sms')
         if self.hospital.webhook_url:
             channels.append('webhook')
-        if self.hospital.phone_number:
+        if self.hospital.phone:
             channels.append('voice')
         
         return channels
@@ -178,7 +178,7 @@ class HospitalCommunicationService:
             },
             'first_aider_info': {
                 'name': self.communication.first_aider.get_full_name(),
-                'contact': self.communication.first_aider.phone_number,
+                'contact': self.communication.first_aider.phone,
             }
         }
     

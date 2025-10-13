@@ -154,7 +154,7 @@ class SMSLog(models.Model):
     )
     
     # SMS specific fields
-    phone_number = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20)
     message = models.TextField()
     message_id = models.CharField(max_length=100, blank=True, db_index=True)
     
@@ -178,12 +178,12 @@ class SMSLog(models.Model):
     class Meta:
         db_table = 'sms_logs'
         indexes = [
-            models.Index(fields=['phone_number', 'sent_at']),
+            models.Index(fields=['phone', 'sent_at']),
             models.Index(fields=['message_id']),
         ]
     
     def __str__(self):
-        return f"SMS to {self.phone_number} - {self.status}"
+        return f"SMS to {self.phone} - {self.status}"
 
 class PushNotificationLog(models.Model):
     """

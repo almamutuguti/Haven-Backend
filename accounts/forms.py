@@ -29,7 +29,7 @@ class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
         fields = (
-            'badge_number', 'username', 'email', 'phone_number', 
+            'badge_number', 'username', 'email', 'phone', 
             'role', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone'
         )
@@ -49,7 +49,7 @@ class CustomUserCreationForm(UserCreationForm):
                 'placeholder': 'e.g., john@haven.com',
                 'style': 'width: 300px;'
             }),
-            'phone_number': forms.TextInput(attrs={
+            'phone': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+254712345678',
                 'style': 'width: 300px;'
@@ -87,7 +87,7 @@ class CustomUserCreationForm(UserCreationForm):
         help_texts = {
             'badge_number': 'Unique identifier for the user (e.g., FA001 for First Aider 001)',
             'role': 'Select the role of this user in the system',
-            'phone_number': 'Kenyan format: +254712345678',
+            'phone': 'Kenyan format: +254712345678',
         }
 
     def clean_badge_number(self):
@@ -96,11 +96,11 @@ class CustomUserCreationForm(UserCreationForm):
             raise ValidationError("A user with this badge number already exists.")
         return badge_number
 
-    def clean_phone_number(self):
-        phone_number = self.cleaned_data.get('phone_number')
-        if phone_number and CustomUser.objects.filter(phone_number=phone_number).exists():
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone and CustomUser.objects.filter(phone=phone).exists():
             raise ValidationError("A user with this phone number already exists.")
-        return phone_number
+        return phone
 
 class CustomUserChangeForm(UserChangeForm):
     """Form for updating existing users"""
@@ -108,7 +108,7 @@ class CustomUserChangeForm(UserChangeForm):
     class Meta:
         model = CustomUser
         fields = (
-            'badge_number', 'username', 'email', 'phone_number', 
+            'badge_number', 'username', 'email', 'phone', 
             'role', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone',
             'is_active', 'is_staff', 'is_superuser'
@@ -126,7 +126,7 @@ class CustomUserChangeForm(UserChangeForm):
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),
-            'phone_number': forms.TextInput(attrs={
+            'phone': forms.TextInput(attrs={
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),

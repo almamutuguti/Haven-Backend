@@ -10,7 +10,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = (
-            'badge_number', 'username', 'email', 'phone_number', 'password', 'password_confirm',
+            'badge_number', 'username', 'email', 'phone', 'password', 'password_confirm',
             'role', 'first_name', 'last_name', 'registration_number', 
             'emergency_contact_name', 'emergency_contact_phone'
         )
@@ -24,7 +24,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password_confirm": "Passwords don't match."})
         
         # Validate at least one contact method exists
-        if not attrs.get('email') and not attrs.get('phone_number'):
+        if not attrs.get('email') and not attrs.get('phone'):
             raise serializers.ValidationError(
                 "Either email or phone number must be provided."
             )
@@ -61,7 +61,7 @@ class LoginSerializer(serializers.Serializer):
                     pass
             elif login.startswith('+'):
                 try:
-                    user = CustomUser.objects.get(phone_number=login)
+                    user = CustomUser.objects.get(phone=login)
                 except CustomUser.DoesNotExist:
                     pass
             else:
@@ -92,7 +92,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = (
-            'id', 'badge_number', 'username', 'email', 'phone_number', 'role',
+            'id', 'badge_number', 'username', 'email', 'phone', 'role',
             'first_name', 'last_name', 'registration_number', 
             'emergency_contact_name', 'emergency_contact_phone',
             'date_joined', 'last_login'

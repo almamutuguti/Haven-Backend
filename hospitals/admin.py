@@ -50,7 +50,7 @@ class HospitalAdmin(admin.ModelAdmin):
         ('Basic Information', {
             'fields': (
                 'name', 'hospital_type', 'level', 
-                'phone_number', 'emergency_phone', 'email', 'website'
+                'phone', 'emergency_phone', 'email', 'website'
             )
         }),
         ('Location', {

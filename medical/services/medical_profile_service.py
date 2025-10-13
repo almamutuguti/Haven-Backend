@@ -280,7 +280,7 @@ class MedicalProfileService:
                 emergency_data['patient_info']['emergency_contacts'].append({
                     'name': contact.full_name,
                     'relationship': contact.relationship,
-                    'phone': contact.phone_number,
+                    'phone': contact.phone,
                     'can_make_medical_decisions': contact.can_make_medical_decisions,
                 })
             
