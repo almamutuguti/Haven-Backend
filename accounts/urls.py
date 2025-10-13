@@ -2,17 +2,16 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Authentication
-    path('api/register/', views.register_user, name='register'),
-    path('api/login/', views.login_user, name='login'),
+    # Authentication endpoints
+    path('register/', views.RegisterAPIView.as_view(), name='register'),
+    path('login/', views.LoginAPIView.as_view(), name='login'),
+    path('logout/', views.LogoutAPIView.as_view(), name='logout'),
+    path('refresh-token/', views.RefreshTokenAPIView.as_view(), name='refresh-token'),
+    path('emergency-bypass/', views.EmergencyBypassAPIView.as_view(), name='emergency-bypass'),
     
-    # Token management
-    path('api/refresh/', views.refresh_token, name='token-refresh'),
-    path('api/logout/', views.logout, name='logout'),
-    
-    # Emergency access
-    path('api/emergency-bypass/', views.emergency_bypass, name='emergency-bypass'),
-    
-    # Profile
-    path('api/profile/', views.user_profile, name='user-profile'),
+    # User management endpoints
+    path('profile/', views.UserProfileAPIView.as_view(), name='user-profile'),
+    path('users/', views.UserListAPIView.as_view(), name='user-list'),
+    path('users/active-count/', views.ActiveUsersCountAPIView.as_view(), name='active-users-count'),
+    path('users/by-type/', views.UsersByTypeAPIView.as_view(), name='users-by-type'),
 ]
