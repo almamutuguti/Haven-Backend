@@ -79,8 +79,8 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
         return value
     
     def validate_first_aider(self, value):
-        # Use user_type instead of role
-        if value.user_type != 'first_aider':
+        # Use role instead of role
+        if value.role != 'first_aider':
             raise serializers.ValidationError("User must be a first aider")
         return value
     
@@ -135,14 +135,14 @@ class EmergencyHospitalCommunicationDetailSerializer(serializers.ModelSerializer
 class HospitalAcknowledgmentSerializer(serializers.Serializer):
     """Serializer for hospital acknowledgment"""
     acknowledged_by = serializers.PrimaryKeyRelatedField(
-        # Use user_type instead of role
-        queryset=User.objects.filter(user_type='hospital_admin')
+        # Use role instead of role
+        queryset=User.objects.filter(role='hospital_admin')
     )
     preparation_notes = serializers.CharField(required=False, allow_blank=True)
     
     def validate_acknowledged_by(self, value):
-        # Use user_type instead of role
-        if value.user_type != 'hospital_admin':
+        # Use role instead of role
+        if value.role != 'hospital_admin':
             raise serializers.ValidationError("User must be a hospital admin")
         return value
 

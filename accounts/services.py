@@ -15,7 +15,7 @@ class EmergencyAccessService:
         try:
             user = CustomUser.objects.get(
                 badge_number=badge_number, 
-                user_type__in=['first_aider', 'hospital_staff']
+                role__in=['first_aider', 'hospital_staff']
             )
             
             access_token = secrets.token_urlsafe(32)

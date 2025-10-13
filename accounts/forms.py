@@ -30,7 +30,7 @@ class CustomUserCreationForm(UserCreationForm):
         model = CustomUser
         fields = (
             'badge_number', 'username', 'email', 'phone_number', 
-            'user_type', 'first_name', 'last_name', 'registration_number',
+            'role', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone'
         )
         widgets = {
@@ -54,7 +54,7 @@ class CustomUserCreationForm(UserCreationForm):
                 'placeholder': '+254712345678',
                 'style': 'width: 300px;'
             }),
-            'user_type': forms.Select(attrs={
+            'role': forms.Select(attrs={
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),
@@ -86,7 +86,7 @@ class CustomUserCreationForm(UserCreationForm):
         }
         help_texts = {
             'badge_number': 'Unique identifier for the user (e.g., FA001 for First Aider 001)',
-            'user_type': 'Select the role of this user in the system',
+            'role': 'Select the role of this user in the system',
             'phone_number': 'Kenyan format: +254712345678',
         }
 
@@ -109,7 +109,7 @@ class CustomUserChangeForm(UserChangeForm):
         model = CustomUser
         fields = (
             'badge_number', 'username', 'email', 'phone_number', 
-            'user_type', 'first_name', 'last_name', 'registration_number',
+            'role', 'first_name', 'last_name', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone',
             'is_active', 'is_staff', 'is_superuser'
         )
@@ -130,7 +130,7 @@ class CustomUserChangeForm(UserChangeForm):
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),
-            'user_type': forms.Select(attrs={
+            'role': forms.Select(attrs={
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),
@@ -169,7 +169,7 @@ class QuickUserCreateForm(forms.ModelForm):
     
     class Meta:
         model = CustomUser
-        fields = ('badge_number', 'username', 'user_type', 'password')
+        fields = ('badge_number', 'username', 'role', 'password')
         widgets = {
             'badge_number': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -181,7 +181,7 @@ class QuickUserCreateForm(forms.ModelForm):
                 'placeholder': 'e.g., test_user',
                 'style': 'width: 300px;'
             }),
-            'user_type': forms.Select(attrs={
+            'role': forms.Select(attrs={
                 'class': 'form-control',
                 'style': 'width: 300px;'
             }),
@@ -197,8 +197,8 @@ class QuickUserCreateForm(forms.ModelForm):
 class BulkUserCreateForm(forms.Form):
     """Form for creating multiple test users at once"""
     
-    user_type = forms.ChoiceField(
-        choices=CustomUser.USER_TYPE_CHOICES,
+    role = forms.ChoiceField(
+        choices=CustomUser.ROLE_CHOICES,
         widget=forms.Select(attrs={
             'class': 'form-control',
             'style': 'width: 300px;'

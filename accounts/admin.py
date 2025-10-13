@@ -12,8 +12,8 @@ class CustomUserAdmin(UserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
     
-    list_display = ('badge_number', 'username', 'email', 'user_type', 'is_staff', 'is_active')
-    list_filter = ('user_type', 'is_staff', 'is_superuser', 'is_active')
+    list_display = ('badge_number', 'username', 'email', 'role', 'is_staff', 'is_active')
+    list_filter = ('role', 'is_staff', 'is_superuser', 'is_active')
     search_fields = ('badge_number', 'username', 'email', 'phone_number', 'first_name', 'last_name')
     ordering = ('badge_number',)
     
@@ -26,7 +26,7 @@ class CustomUserAdmin(UserAdmin):
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
         (_('Haven Specific'), {
             'fields': (
-                'user_type', 'phone_number', 'registration_number',
+                'role', 'phone_number', 'registration_number',
                 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),
@@ -39,7 +39,7 @@ class CustomUserAdmin(UserAdmin):
         }),
         (_('Haven Specific'), {
             'fields': (
-                'user_type', 'email', 'phone_number', 'first_name', 'last_name',
+                'role', 'email', 'phone_number', 'first_name', 'last_name',
                 'registration_number', 'emergency_contact_name', 'emergency_contact_phone'
             )
         }),
@@ -79,17 +79,17 @@ class CustomUserAdmin(UserAdmin):
                 # Create multiple test users
                 base_badge = form.cleaned_data['base_badge']
                 count = form.cleaned_data['count']
-                user_type = form.cleaned_data['user_type']
+                role = form.cleaned_data['role']
                 
                 for i in range(1, count + 1):
                     badge_number = f"{base_badge}{i:03d}"
-                    username = f"test_{user_type}_{i:03d}"
+                    username = f"test_{role}_{i:03d}"
                     
                     if not CustomUser.objects.filter(badge_number=badge_number).exists():
                         CustomUser.objects.create_user(
                             badge_number=badge_number,
                             username=username,
-                            user_type=user_type,
+                            role=role,
                             password='testpass123'
                         )
                 

@@ -5,32 +5,35 @@ from django.core.validators import RegexValidator
 from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, badge_number, password=None, **extra_fields):
-        if not badge_number:
-            raise ValueError('The Badge Number must be set')
+    def create_user(self, username, password=None, **extra_fields):
+        if not username:
+            raise ValueError('The Username must be set')
         
-        if not extra_fields.get('username'):
-            extra_fields['username'] = badge_number
+        # if not extra_fields.get('badge_number'):
+        #     extra_fields['badge_number'] = username
             
-        user = self.model(badge_number=badge_number, **extra_fields)
+        user = self.model(username=username, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, badge_number, password=None, **extra_fields):
+    def create_superuser(self, username, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('user_type', 'system_admin')
+        extra_fields.setdefault('role', 'system_admin')
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
         
-        return self.create_user(badge_number, password, **extra_fields)
+        if not extra_fields.get('role') == 'system_admin':
+            raise ValueError('Superuser must have role=system_admin.')
+        
+        return self.create_user(username, password, **extra_fields)
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
-    USER_TYPE_CHOICES = (
+    ROLE_CHOICES = (
         ('system_admin', 'System Admin'),
         ('first_aider', 'First Aider'),
         ('hospital_staff', 'Hospital Staff'),
@@ -43,7 +46,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
     
 
-    user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='first_aider')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='first_aider')
     
     # Required fields for AbstractBaseUser
     username = models.CharField(max_length=150, unique=True)
@@ -86,14 +89,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     objects = CustomUserManager()
     
-    USERNAME_FIELD = 'badge_number'
-    REQUIRED_FIELDS = ['username']
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
+
 
     def __str__(self):
-        user_type_display = self.get_user_type_display()
+        role_display = self.get_role_display()
         if self.badge_number:
-            return f"{self.badge_number} ({user_type_display})"
-        return f"User {self.id} ({user_type_display})"
+            return f"{self.badge_number} ({role_display})"
+        return f"User {self.id} ({role_display})"
     
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}".strip()

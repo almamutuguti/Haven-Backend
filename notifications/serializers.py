@@ -13,12 +13,12 @@ User = get_user_model()
 
 class NotificationSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
-    user_type = serializers.CharField(source='user.user_type', read_only=True)
+    role = serializers.CharField(source='user.role', read_only=True)
     
     class Meta:
         model = Notification
         fields = [
-            'id', 'user', 'user_name', 'user_type', 'title', 'message',
+            'id', 'user', 'user_name', 'role', 'title', 'message',
             'notification_type', 'priority', 'channel', 'status',
             'emergency_alert', 'hospital_communication', 'metadata',
             'created_at', 'sent_at', 'delivered_at', 'read_at'
