@@ -248,7 +248,7 @@ class ActiveEmergenciesAPIView(APIView):
     def get(self, request):
         try:
             # Check if user has permission to view all active emergencies
-            if not request.user.user_type in ['system_admin', 'hospital_admin']:
+            if not request.user.role in ['system_admin', 'hospital_admin']:
                 return Response(
                     {'error': 'Permission denied'},
                     status=status.HTTP_403_FORBIDDEN

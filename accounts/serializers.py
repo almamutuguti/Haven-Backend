@@ -34,61 +34,52 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        badge_number = validated_data.pop('badge_number')
         
         user = CustomUser.objects.create_user(
-            badge_number=validated_data['badge_number'],
+            badge_number=badge_number,
             password=password,
             **validated_data
         )
         return user
 
 class LoginSerializer(serializers.Serializer):
-    login = serializers.CharField()  # badge_number, email, phone, or username
+    email = serializers.CharField()
     password = serializers.CharField()
     
     def validate(self, data):
-        login = data.get('login')
+        email = data.get('email')
         password = data.get('password')
         
-        if login and password:
-            user = None
-            
+        if email and password:
             # Multi-field authentication
-            if '@' in login:
+            if '@' in email:
                 try:
-                    user = CustomUser.objects.get(email=login)
+                    user = CustomUser.objects.get(email=email)
                 except CustomUser.DoesNotExist:
-                    pass
-            elif login.startswith('+'):
-                try:
-                    user = CustomUser.objects.get(phone=login)
-                except CustomUser.DoesNotExist:
-                    pass
+                    raise serializers.ValidationError("Invalid credentials.")
             else:
-                # Try badge_number first, then username
-                try:
-                    user = CustomUser.objects.get(badge_number=login)
-                except CustomUser.DoesNotExist:
-                    try:
-                        user = CustomUser.objects.get(username=login)
-                    except CustomUser.DoesNotExist:
-                        pass
+                # Handle other login methods if needed
+                raise serializers.ValidationError("Please use email to login.")
             
-            if user:
-                user = authenticate(username=user.badge_number, password=password)
+            # Check if user is active
+            if not user.is_active:
+                raise serializers.ValidationError("User account is disabled.")
             
-            if user and user.is_active:
-                data['user'] = user
-                return data
+            # Verify password
+            if not user.check_password(password):
+                raise serializers.ValidationError("Invalid credentials.")
             
-            raise serializers.ValidationError("Invalid credentials.")
-        raise serializers.ValidationError("Must include 'login' and 'password'.")
+            # Add user to validated data
+            data['user'] = user
+            return data
+            
+        raise serializers.ValidationError("Must include 'email' and 'password'.")
 
-class EmergencyBypassSerializer(serializers.Serializer):
-    badge_number = serializers.CharField()
-    reason = serializers.CharField(required=False)
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    email = serializers.CharField
     class Meta:
         model = CustomUser
         fields = (

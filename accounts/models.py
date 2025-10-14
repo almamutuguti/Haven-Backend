@@ -9,8 +9,8 @@ class CustomUserManager(BaseUserManager):
         if not username:
             raise ValueError('The Username must be set')
         
-        # if not extra_fields.get('badge_number'):
-        #     extra_fields['badge_number'] = username
+        if not extra_fields.get('badge_number'):
+            extra_fields['badge_number'] = username
             
         user = self.model(username=username, **extra_fields)
         user.set_password(password)
@@ -21,7 +21,7 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'system_admin')
-        extra_fields.setdefault('phone', '+254700000000')  # Dummy phone for superuser
+
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
