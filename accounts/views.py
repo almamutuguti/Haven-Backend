@@ -2,6 +2,7 @@ from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django.db.models import Q
 from .models import CustomUser
 from .serializers import (
@@ -83,8 +84,8 @@ class RefreshTokenAPIView(APIView):
                 'error': 'Invalid refresh token'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-
 class UserProfileAPIView(APIView):
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
@@ -96,7 +97,6 @@ class UserProfileAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

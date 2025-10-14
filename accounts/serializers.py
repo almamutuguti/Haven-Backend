@@ -79,7 +79,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    email = serializers.CharField
+
     class Meta:
         model = CustomUser
         fields = (

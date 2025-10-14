@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 from decouple import config
 
@@ -39,8 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt',
+
     'rest_framework_simplejwt.token_blacklist',
+    'rest_framework.authtoken',
     'corsheaders',
     'channels',
     'accounts',
@@ -159,5 +161,20 @@ GEOIP_PATH = BASE_DIR / 'geoip'
 MEDICAL_DATA_ENCRYPTION_KEY = config('MEDICAL_DATA_ENCRYPTION_KEY', default='your-encryption-key')
 FHIR_API_ENABLED = config('FHIR_API_ENABLED', default=True)
 MEDICAL_DATA_RETENTION_DAYS = config('MEDICAL_DATA_RETENTION_DAYS', default=3650)  # 10 years
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
 
