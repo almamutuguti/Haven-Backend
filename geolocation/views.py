@@ -129,7 +129,7 @@ class CalculateDistanceAPIView(APIView):
 class FindNearbyHospitalsAPIView(APIView):
     """
     Find hospitals near a given location
-    POST /api/geolocation/hospitals/nearby/
+    POST geolocation/hospitals/nearby/
     """
     permission_classes = [permissions.IsAuthenticated]
     

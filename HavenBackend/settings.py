@@ -156,6 +156,8 @@ GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY')
 GOOGLE_MAPS_CACHE_TIMEOUT = 3600  # 1 hour
 GOOGLE_MAPS_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GOOGLE_MAPS_DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
+GOOGLE_MAPS_NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+GOOGLE_MAPS_PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 
 GEOIP_PATH = BASE_DIR / 'geoip'
 
