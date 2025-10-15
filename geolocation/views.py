@@ -168,8 +168,8 @@ class FindNearbyHospitalsAPIView(APIView):
 class LocationListCreateAPIView(generics.ListCreateAPIView):
     """
     Get user's saved locations or create new location
-    GET /api/geolocation/locations/ - List locations
-    POST /api/geolocation/locations/ - Create location
+    GET geolocation/locations/ - List locations
+    POST geolocation/locations/ - Create location
     """
     serializer_class = LocationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -189,9 +189,9 @@ class LocationListCreateAPIView(generics.ListCreateAPIView):
 class LocationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     """
     Retrieve, update or delete a location
-    GET /api/geolocation/locations/{id}/ - Get location
-    PUT /api/geolocation/locations/{id}/ - Update location
-    DELETE /api/geolocation/locations/{id}/ - Delete location
+    GET geolocation/locations/{id}/ - Get location
+    PUT geolocation/locations/{id}/ - Update location
+    DELETE geolocation/locations/{id}/ - Delete location
     """
     serializer_class = LocationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -211,7 +211,7 @@ class LocationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 class SetPrimaryLocationAPIView(APIView):
     """
     Set a location as user's primary location
-    POST /api/geolocation/locations/{location_id}/primary/
+    POST geolocation/locations/{location_id}/primary/
     """
     permission_classes = [permissions.IsAuthenticated]
     

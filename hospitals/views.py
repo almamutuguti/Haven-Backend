@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class DiscoverNearbyHospitalsAPIView(APIView):
     """
     Discover hospitals near a location
-    POST /api/hospitals/nearby/
+    POST hospitals/nearby/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -60,7 +60,7 @@ class DiscoverNearbyHospitalsAPIView(APIView):
 class SearchHospitalsAPIView(APIView):
     """
     Search hospitals by name, specialty, or location
-    POST /api/hospitals/search/
+    POST hospitals/search/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -92,7 +92,7 @@ class SearchHospitalsAPIView(APIView):
 class HospitalDetailAPIView(APIView):
     """
     Get detailed information about a hospital
-    GET /api/hospitals/{id}/
+    GET hospitals/{id}/
     """
     permission_classes = [permissions.AllowAny]
     

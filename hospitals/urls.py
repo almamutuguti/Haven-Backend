@@ -3,7 +3,6 @@ from . import views
 
 urlpatterns = [
     # Discovery endpoints
-    path('nearby/', views.DiscoverNearbyHospitalsAPIView.as_view(), name='nearby-hospitals'),
     path('search/', views.SearchHospitalsAPIView.as_view(), name='search-hospitals'),
     
     # Hospital details and capabilities
