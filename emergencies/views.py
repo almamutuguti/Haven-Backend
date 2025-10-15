@@ -66,7 +66,7 @@ class TriggerEmergencyAlertAPIView(APIView):
 class AlertStatusAPIView(APIView):
     """
     Get emergency alert status
-    GET /api/emergency/{alert_id}/status/
+    GET emergency/{alert_id}/status/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -162,7 +162,7 @@ class CancelEmergencyAlertAPIView(APIView):
 class EmergencyHistoryAPIView(APIView):
     """
     Get user's emergency history
-    GET /api/emergency/history/
+    GET emergency/history/
     """
     permission_classes = [permissions.IsAuthenticated]
     

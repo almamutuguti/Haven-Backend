@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class GeocodeAddressAPIView(APIView):
     """
     Convert address to coordinates or coordinates to address
-    POST /api/geolocation/geocode/
+    POST geolocation/geocode/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -89,7 +89,7 @@ class GeocodeAddressAPIView(APIView):
 class CalculateDistanceAPIView(APIView):
     """
     Calculate distance and ETA between two points
-    POST /api/geolocation/distance/
+    POST geolocation/distance/
     """
     permission_classes = [permissions.IsAuthenticated]
     
