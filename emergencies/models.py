@@ -50,11 +50,11 @@ class EmergencyAlert(models.Model):
         on_delete=models.CASCADE, 
         related_name='emergency_alerts'
     )
-    alert_id = models.CharField(max_length=20, unique=True, db_index=True)
+    alert_id = models.CharField(max_length=30, unique=True, db_index=True)
     
     # Emergency details
     emergency_type = models.CharField(
-        max_length=20, 
+        max_length=30, 
         choices=EMERGENCY_TYPE_CHOICES, 
         default='medical'
     )

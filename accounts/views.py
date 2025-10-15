@@ -85,7 +85,7 @@ class RefreshTokenAPIView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class UserProfileAPIView(APIView):
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):

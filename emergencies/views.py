@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class TriggerEmergencyAlertAPIView(APIView):
     """
     Trigger a new emergency alert
-    POST /api/emergency/alert/
+    POST emergency/alert/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -87,7 +87,7 @@ class AlertStatusAPIView(APIView):
 class UpdateAlertLocationAPIView(APIView):
     """
     Update emergency alert location
-    PUT /api/emergency/{alert_id}/location/
+    PUT emergencies/{alert_id}/location/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -125,7 +125,7 @@ class UpdateAlertLocationAPIView(APIView):
 class CancelEmergencyAlertAPIView(APIView):
     """
     Cancel emergency alert
-    POST /api/emergency/{alert_id}/cancel/
+    POST emergencies/{alert_id}/cancel/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -185,7 +185,7 @@ class EmergencyHistoryAPIView(APIView):
 class EmergencyUpdatesAPIView(APIView):
     """
     Get updates for a specific emergency alert
-    GET /api/emergency/{alert_id}/updates/
+    GET emergencies/{alert_id}/updates/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -208,7 +208,7 @@ class EmergencyUpdatesAPIView(APIView):
 class VerifyEmergencyAlertAPIView(APIView):
     """
     Verify emergency alert with code
-    POST /api/emergency/{alert_id}/verify/
+    POST emergencies/{alert_id}/verify/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -241,7 +241,7 @@ class VerifyEmergencyAlertAPIView(APIView):
 class ActiveEmergenciesAPIView(APIView):
     """
     Get all active emergencies (for hospital/admin use)
-    GET /api/emergency/active/
+    GET emergencies/active/
     """
     permission_classes = [permissions.IsAuthenticated]
     
