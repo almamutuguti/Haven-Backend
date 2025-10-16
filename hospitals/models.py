@@ -51,6 +51,7 @@ class Hospital(models.Model):
     is_operational = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     accepts_emergencies = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

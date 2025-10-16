@@ -182,7 +182,7 @@ class HospitalCapabilitiesAPIView(APIView):
 class MatchHospitalsForEmergencyAPIView(APIView):
     """
     Find best hospitals for a specific emergency
-    POST /api/hospitals/matching/
+    POST hospitals/matching/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -216,7 +216,7 @@ class MatchHospitalsForEmergencyAPIView(APIView):
 class SendHospitalAlertAPIView(APIView):
     """
     Send emergency notification to hospital
-    POST /api/hospitals/{id}/alert/
+    POST hospitals/{id}/alert/
     """
     permission_classes = [permissions.IsAuthenticated]
     

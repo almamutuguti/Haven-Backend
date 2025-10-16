@@ -12,7 +12,7 @@ router.register(r'email-logs', views.EmailLogViewSet, basename='email-log')
 router.register(r'admin-notifications', views.AdminNotificationViewSet, basename='admin-notification')
 
 urlpatterns = [
-    path('api/notifications/', include(router.urls)),
+    path('api/', include(router.urls)),
 ]
 
 # Additional custom endpoints using class-based views
