@@ -4,11 +4,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 
 
 from accounts import serializers
-from emergencies import models
+
 
 from .models import Hospital, HospitalRating, HospitalCapacity
 from .serializers import (
@@ -259,7 +259,7 @@ class SendHospitalAlertAPIView(APIView):
 class GetCommunicationStatusAPIView(APIView):
     """
     Get communication status for an emergency alert
-    GET /api/hospitals/comms/status/{alert_id}/
+    GETh ospitals/comms/status/{alert_id}/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -368,15 +368,34 @@ class HospitalStatisticsAPIView(APIView):
                 average_rating=Avg('overall_rating'),
                 total_ratings=Count('id'),
                 average_emergency_rating=Avg('emergency_care_rating'),
-                emergency_ratings_count=Count('id', filter=models.Q(was_emergency=True))
+                emergency_ratings_count=Count('id', filter=Q(was_emergency=True))
             )
             
-            # Calculate response statistics
-            response_stats = hospital.emergency_responses.aggregate(
+            # Calculate response statistics - avoid division by zero
+            response_aggregation = hospital.emergency_responses.aggregate(
                 average_response_time=Avg('response_time'),
                 total_responses=Count('id'),
-                acceptance_rate=Count('id', filter=models.Q(accepted_patient=True)) / Count('id') * 100
+                accepted_responses=Count('id', filter=Q(accepted_patient=True))
             )
+            
+            total_responses = response_aggregation['total_responses'] or 0
+            accepted_responses = response_aggregation['accepted_responses'] or 0
+            
+            # Calculate acceptance rate safely
+            if total_responses > 0:
+                acceptance_rate = round((accepted_responses / total_responses) * 100, 1)
+            else:
+                acceptance_rate = 0.0
+            
+            # Get capacity information safely
+            capacity_info = None
+            if hasattr(hospital, 'capacity'):
+                capacity_info = {
+                    'bed_occupancy_rate': hospital.capacity.bed_occupancy_rate or 0,
+                    'emergency_occupancy_rate': hospital.capacity.emergency_occupancy_rate or 0,
+                    'available_beds': hospital.capacity.available_beds or 0,
+                    'available_emergency_beds': hospital.capacity.available_beds or 0,
+                }
             
             statistics = {
                 'hospital_id': hospital.id,
@@ -388,14 +407,12 @@ class HospitalStatisticsAPIView(APIView):
                     'emergency_ratings_count': rating_stats['emergency_ratings_count'] or 0,
                 },
                 'responses': {
-                    'average_response_time': round(response_stats['average_response_time'] or 0, 1),
-                    'total_responses': response_stats['total_responses'] or 0,
-                    'acceptance_rate': round(response_stats['acceptance_rate'] or 0, 1),
+                    'average_response_time': round(response_aggregation['average_response_time'] or 0, 1),
+                    'total_responses': total_responses,
+                    'accepted_responses': accepted_responses,
+                    'acceptance_rate': acceptance_rate,
                 },
-                'capacity': {
-                    'bed_occupancy_rate': hospital.capacity.bed_occupancy_rate if hasattr(hospital, 'capacity') else 0,
-                    'emergency_occupancy_rate': hospital.capacity.emergency_occupancy_rate if hasattr(hospital, 'capacity') else 0,
-                } if hasattr(hospital, 'capacity') else None
+                'capacity': capacity_info
             }
             
             return Response(statistics)
@@ -406,7 +423,7 @@ class HospitalStatisticsAPIView(APIView):
                 {'error': 'Failed to get hospital statistics'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+        
 
 class GetFallbackHospitalsAPIView(APIView):
     """
