@@ -38,7 +38,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('system_admin', 'System Admin'),
         ('first_aider', 'First Aider'),
         ('hospital_staff', 'Hospital Staff'),
-        ('patient', 'Patient'),
+
     )
     
     phone_regex = RegexValidator(

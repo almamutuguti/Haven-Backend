@@ -117,7 +117,7 @@ class CheckHospitalAvailabilityAPIView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
     
-    def post(self, request, hospital_id):
+    def get(self, request, hospital_id):
         try:
             availability = DiscoveryService.check_hospital_availability(hospital_id)
             
