@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
+from emergencies import serializers
 from .models import (
     EmergencyHospitalCommunication, 
     CommunicationLog,
@@ -24,6 +26,8 @@ from .serializers import (
 from .services import HospitalCommunicationService, HospitalResponseService
 # Update permissions import to use correct path
 from accounts.permissions import IsFirstAider, IsHospitalStaff, IsSystemAdmin
+
+
 
 
 class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):

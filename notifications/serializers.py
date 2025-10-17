@@ -43,18 +43,37 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
     
     def validate_channel(self, value):
         """Validate channel based on user preferences"""
-        user = self.initial_data.get('user')
-        if user:
+        # Get the user instance that was already validated
+        user = None
+        
+        # Try to get user from different sources
+        if hasattr(self, '_validated_data') and 'user' in self._validated_data:
+            user = self._validated_data['user']
+        elif 'user' in self.initial_data:
+            user_id = self.initial_data['user']
             try:
-                preferences = user.notification_preferences
-                channel_field = f"{value}_enabled"
-                if not getattr(preferences, channel_field, False):
-                    raise serializers.ValidationError(
-                        f"User has disabled {value} notifications"
-                    )
-            except UserNotificationPreference.DoesNotExist:
-                # Use default preferences if none exist
-                pass
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("User does not exist")
+        
+        if user:
+            # Get or create user preferences
+            preferences, created = UserNotificationPreference.objects.get_or_create(
+                user=user,
+                defaults={
+                    'email_enabled': True,
+                    'sms_enabled': True,
+                    'push_enabled': True,
+                    'in_app_enabled': True
+                }
+            )
+            
+            channel_field = f"{value}_enabled"
+            if not getattr(preferences, channel_field, False):
+                raise serializers.ValidationError(
+                    f"User has disabled {value} notifications"
+                )
+        
         return value
 
 class NotificationTemplateSerializer(serializers.ModelSerializer):

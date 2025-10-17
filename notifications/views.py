@@ -451,7 +451,7 @@ class UnreadNotificationsCountAPIView(APIView):
 class SendBulkNotificationsAPIView(APIView):
     """
     Send bulk notifications (admin only)
-    POST /api/notifications/notifications/send-bulk/
+    POST /api/send-bulk/
     """
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
     
@@ -570,7 +570,7 @@ class MarkNotificationReadAPIView(APIView):
 class NotificationPreferenceToggleAPIView(APIView):
     """
     Quick toggle for emergency notifications
-    POST /api/notifications/preferences/quick-toggle/
+    POST /api/preferences/quick-toggle/
     """
     permission_classes = [permissions.IsAuthenticated]
     

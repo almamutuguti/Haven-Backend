@@ -18,42 +18,42 @@ urlpatterns = [
 # Additional custom endpoints using class-based views
 urlpatterns += [
     path(
-        'api/notifications/notifications/mark-all-read/',
+        'api/mark-all-read/',
         views.MarkAllNotificationsReadAPIView.as_view(),
         name='mark-all-notifications-read'
     ),
     path(
-        'api/notifications/notifications/unread-count/',
+        'api/unread-count/',
         views.UnreadNotificationsCountAPIView.as_view(),
         name='unread-notifications-count'
     ),
     path(
-        'api/notifications/notifications/send-bulk/',
+        'api/send-bulk/',
         views.SendBulkNotificationsAPIView.as_view(),
         name='send-bulk-notifications'
     ),
     path(
-        'api/notifications/notifications/stats/',
+        'api/stats/',
         views.NotificationStatsAPIView.as_view(),
         name='notification-stats'
     ),
     path(
-        'api/notifications/notifications/<uuid:pk>/mark-read/',
+        'api/<uuid:pk>/mark-read/',
         views.MarkNotificationReadAPIView.as_view(),
         name='mark-notification-read'
     ),
     path(
-        'api/notifications/preferences/quick-toggle/',
+        'api/preferences/quick-toggle/',
         views.NotificationPreferenceToggleAPIView.as_view(),
         name='notification-preference-toggle'
     ),
     path(
-        'api/notifications/templates/<uuid:pk>/test/',
+        'api/templates/<uuid:pk>/test/',
         views.TestNotificationTemplateAPIView.as_view(),
         name='test-notification-template'
     ),
     path(
-        'api/notifications/admin-notifications/system-stats/',
+        'api/admin-notifications/system-stats/',
         views.AdminNotificationStatsAPIView.as_view(),
         name='admin-notification-stats'
     ),
