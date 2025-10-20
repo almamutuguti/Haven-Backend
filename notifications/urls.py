@@ -43,9 +43,9 @@ urlpatterns += [
         name='mark-notification-read'
     ),
     path(
-        'api/preferences/quick-toggle/',
+        'api/quick-toggle/',
         views.NotificationPreferenceToggleAPIView.as_view(),
-        name='notification-preference-toggle'
+        name='preference-toggle'
     ),
     path(
         'api/templates/<uuid:pk>/test/',
@@ -53,8 +53,8 @@ urlpatterns += [
         name='test-notification-template'
     ),
     path(
-        'api/admin-notifications/system-stats/',
+        'api/system-stats/',
         views.AdminNotificationStatsAPIView.as_view(),
-        name='admin-notification-stats'
+        name='system-stats'
     ),
 ]

@@ -64,7 +64,7 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
                     'email_enabled': True,
                     'sms_enabled': True,
                     'push_enabled': True,
-                    'in_app_enabled': True
+                    'voice_enabled': True
                 }
             )
             

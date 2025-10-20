@@ -570,7 +570,7 @@ class MarkNotificationReadAPIView(APIView):
 class NotificationPreferenceToggleAPIView(APIView):
     """
     Quick toggle for emergency notifications
-    POST /api/preferences/quick-toggle/
+    POST api/preferences/quick-toggle/
     """
     permission_classes = [permissions.IsAuthenticated]
     

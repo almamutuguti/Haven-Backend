@@ -80,7 +80,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     #     blank=True
     # )
     
-    # For Patients (optional)
+
     emergency_contact_name = models.CharField(max_length=100, blank=True)
     emergency_contact_phone = models.CharField(
         max_length=17, 
