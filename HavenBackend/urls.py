@@ -47,7 +47,6 @@ urlpatterns = [
     path('geolocation/', include('geolocation.urls')),
     path('emergencies/', include('emergencies.urls')),
     path('hospitals/', include('hospitals.urls')),
-    path('medical-profile/', include('medical.urls')),
     path('hospital-comms/', include('hospital_communication.urls')),  # For hospital communication endpoints
     path('notifications/', include('notifications.urls')),  # For notification endpoints
 

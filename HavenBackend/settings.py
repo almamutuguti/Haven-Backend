@@ -45,14 +45,13 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'channels',
-    'drf-yasg',
+    'drf_yasg',
 
     # apps
     'accounts',
     'geolocation',
     'emergencies',
     'hospitals',
-    'medical',
     'hospital_communication',
     'notifications',
 

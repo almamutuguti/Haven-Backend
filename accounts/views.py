@@ -4,6 +4,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django.db.models import Q
+
+from accounts.permissions import IsSystemAdmin
 from .models import CustomUser
 from .serializers import (
     UserRegistrationSerializer, 
@@ -38,10 +40,7 @@ class RegisterAPIView(generics.CreateAPIView):
         return Response({
             'message': 'User registered successfully',
             'user': UserProfileSerializer(user).data,
-            # 'tokens': {
-            #     'refresh': str(refresh),
-            #     'access': str(refresh.access_token),
-            # }
+
         }, status=status.HTTP_201_CREATED)
 
 
@@ -122,13 +121,13 @@ class UserListAPIView(generics.ListAPIView):
     
     def get_queryset(self):
         # Only allow system admins and hospital admins to view all users
-        if self.request.user.role not in ['system_admin', 'hospital_admin']:
-            return CustomUser.objects.none()
+        if self.request.user.role not in ['system_admin']:
+            return Response({'error': 'You do not have permission to view this resource.'}, status=status.HTTP_403_FORBIDDEN)
         return super().get_queryset()
 
 
 class ActiveUsersCountAPIView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
     
     def get(self, request):
         active_users = CustomUser.objects.all().filter(is_active=True)
@@ -139,12 +138,30 @@ class ActiveUsersCountAPIView(APIView):
 
 class UsersByTypeAPIView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        
+        role = self.request.query_params.get('role')
+        queryset = self.get_queryset()
+        
+        # Add message to response data if no users found for specific role
+        if role and len(response.data) == 0:
+            response.data = {
+                "message": f"No active users found with role '{role}'",
+                "role": role,
+                "users": []
+            }
+        
+        return response
     
     def get_queryset(self):
-        role = self.request.query_params.get('type')
+        role = self.request.query_params.get('role')
+        
+        queryset = CustomUser.objects.filter(is_active=True)
         
         if role:
-            return CustomUser.objects.all().filter(role=role, is_active=True)
-        else:
-            return CustomUser.objects.all().filter(is_active=True)
+            queryset = queryset.filter(role=role)
+            
+        return queryset

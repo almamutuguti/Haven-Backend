@@ -4,7 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from accounts.models import CustomUser as User
 from hospitals.models import Hospital
 from emergencies.models import EmergencyAlert
-from medical.models import MedicalProfile
+
 
 
 class EmergencyHospitalCommunication(models.Model):
