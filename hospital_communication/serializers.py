@@ -54,21 +54,27 @@ class CommunicationLogSerializer(serializers.ModelSerializer):
 
 class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new emergency hospital communications"""
-    emergency_alert_id = serializers.UUIDField(write_only=True)
+    emergency_alert_id = serializers.CharField(
+        write_only=True,
+        error_messages={
+        'invalid': 'Must be a valid alert ID.'
+    }
+
+)
     
     class Meta:
         model = EmergencyHospitalCommunication
         fields = [
             'emergency_alert_id', 'hospital', 'first_aider', 'priority',
             'victim_name', 'victim_age', 'victim_gender', 'chief_complaint',
-            'vital_signs', 'initial_assessment', 'first_aid_provided',
+            'vital_signs', 'first_aid_provided',
             'estimated_arrival_minutes', 'required_specialties', 'equipment_needed',
             'blood_type_required'
         ]
     
-    def validate_emergency_alert_id(self, value):
+    def validate_alert_id(self, value):
         try:
-            EmergencyAlert.objects.get(id=value)
+            EmergencyAlert.objects.get(emergency_alert_id=value)
         except EmergencyAlert.DoesNotExist:
             raise serializers.ValidationError("Emergency alert not found")
         return value
@@ -79,7 +85,6 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
         return value
     
     def validate_first_aider(self, value):
-        # Use role instead of role
         if value.role != 'first_aider':
             raise serializers.ValidationError("User must be a first aider")
         return value
@@ -91,7 +96,7 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
             **validated_data
         )
         return communication
-
+    
 class EmergencyHospitalCommunicationListSerializer(serializers.ModelSerializer):
     """Serializer for listing emergency communications"""
     hospital_name = serializers.CharField(source='hospital.name', read_only=True)

@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -197,61 +198,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
         
         serializer = NotificationStatsSerializer(stats_data)
         return Response(serializer.data)
-
-
-class NotificationTemplateViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for managing notification templates (admin only)
-    """
-    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
-    serializer_class = NotificationTemplateSerializer
-    queryset = NotificationTemplate.objects.all()
-    
-    @action(detail=True, methods=['post'])
-    def test(self, request, pk=None):
-        """Test a notification template"""
-        template = self.get_object()
-        test_user = request.user
-        
-        # Create test context
-        context = {
-            'user_name': test_user.get_full_name(),
-            'alert_id': 'TEST-123',
-            'hospital_name': 'Test Hospital',
-            'eta': '15 minutes',
-            'timestamp': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        # Render template
-        template_data = NotificationTemplateService.render_template(template.name, context)
-        
-        if not template_data:
-            return Response({
-                'status': 'error',
-                'message': 'Failed to render template'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create and send test notification
-        notification = Notification.objects.create(
-            user=test_user,
-            title=template_data['title'],
-            message=template_data['message'],
-            notification_type='test',
-            priority=template_data['priority'],
-            channel=template_data['channel'],
-            metadata={'test_template': template.name}
-        )
-        
-        # Send notification
-        orchestrator = NotificationOrchestrator()
-        success = orchestrator.send_notification(notification)
-        
-        return Response({
-            'status': 'success' if success else 'error',
-            'message': 'Test notification sent' if success else 'Failed to send test notification',
-            'rendered_content': template_data
-        })
-
 
 class UserNotificationPreferenceViewSet(viewsets.ModelViewSet):
     """
@@ -547,24 +493,21 @@ class NotificationStatsAPIView(APIView):
 class MarkNotificationReadAPIView(APIView):
     """
     Mark notification as read
-    POST /api/notifications/notifications/{pk}/mark-read/
+    POST /api/notifications/{pk}/mark-read/
     """
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, pk):
-        try:
-            notification = Notification.objects.get(pk=pk, user=request.user)
-            notification.mark_as_read()
-            
-            return Response({
-                'status': 'success',
-                'message': 'Notification marked as read'
-            })
-        except Notification.DoesNotExist:
-            return Response(
-                {'error': 'Notification not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Using get_object_or_404 for cleaner code
+        notification = get_object_or_404(Notification, pk=pk, user=request.user)
+        notification.mark_as_read()
+        
+        return Response({
+            'status': 'success',
+            'message': 'Notification marked as read',
+            'title': notification.title,
+            'message': notification.message
+        }, status=status.HTTP_200_OK)   
 
 
 class NotificationPreferenceToggleAPIView(APIView):
@@ -596,62 +539,6 @@ class NotificationPreferenceToggleAPIView(APIView):
             'message': f'{channel} notifications { "enabled" if enabled else "disabled" }'
         })
 
-
-class TestNotificationTemplateAPIView(APIView):
-    """
-    Test a notification template
-    POST /api/notifications/templates/{pk}/test/
-    """
-    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
-    
-    def post(self, request, pk):
-        try:
-            template = NotificationTemplate.objects.get(pk=pk)
-            test_user = request.user
-            
-            # Create test context
-            context = {
-                'user_name': test_user.get_full_name(),
-                'alert_id': 'TEST-123',
-                'hospital_name': 'Test Hospital',
-                'eta': '15 minutes',
-                'timestamp': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            
-            # Render template
-            template_data = NotificationTemplateService.render_template(template.name, context)
-            
-            if not template_data:
-                return Response({
-                    'status': 'error',
-                    'message': 'Failed to render template'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Create and send test notification
-            notification = Notification.objects.create(
-                user=test_user,
-                title=template_data['title'],
-                message=template_data['message'],
-                notification_type='test',
-                priority=template_data['priority'],
-                channel=template_data['channel'],
-                metadata={'test_template': template.name}
-            )
-            
-            # Send notification
-            orchestrator = NotificationOrchestrator()
-            success = orchestrator.send_notification(notification)
-            
-            return Response({
-                'status': 'success' if success else 'error',
-                'message': 'Test notification sent' if success else 'Failed to send test notification',
-                'rendered_content': template_data
-            })
-        except NotificationTemplate.DoesNotExist:
-            return Response(
-                {'error': 'Template not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
 
 
 class AdminNotificationStatsAPIView(APIView):

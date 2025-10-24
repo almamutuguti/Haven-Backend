@@ -75,7 +75,7 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         communication_service = HospitalCommunicationService(communication)
         communication_service.send_emergency_alert()
     
-    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff])
+    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
     def acknowledge(self, request, pk=None):
         """
         Hospital acknowledges receipt of emergency alert
@@ -104,7 +104,7 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff])
+    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
     def update_preparation(self, request, pk=None):
         """
         Update hospital preparation status
@@ -136,7 +136,7 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsFirstAider])
+    @action(detail=True, methods=['post'], permission_classes=[IsFirstAider, IsSystemAdmin])
     def add_assessment(self, request, pk=None):
         """
         Add detailed first aider assessment
@@ -218,7 +218,7 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         serializer = CommunicationLogSerializer(logs, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsHospitalStaff])
+    @action(detail=False, methods=['get'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
     def hospital_pending(self, request):
         """
         Get pending communications for hospital
@@ -235,7 +235,7 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(pending_comms, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsFirstAider])
+    @action(detail=False, methods=['get'], permission_classes=[IsFirstAider, IsSystemAdmin])
     def first_aider_active(self, request):
         """
         Get active communications for first aider
@@ -290,7 +290,7 @@ class FirstAiderAssessmentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing first aider assessments
     """
-    permission_classes = [permissions.IsAuthenticated & IsFirstAider]
+    permission_classes = [permissions.IsAuthenticated & IsFirstAider, IsSystemAdmin]
     serializer_class = FirstAiderAssessmentSerializer
     queryset = FirstAiderAssessment.objects.all()
     
@@ -311,7 +311,7 @@ class HospitalPendingCommunicationsAPIView(generics.ListAPIView):
     Get pending communications for hospital
     GET /api/hospital-comms/communications/hospital-pending/
     """
-    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff]
+    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff, IsSystemAdmin]
     serializer_class = EmergencyHospitalCommunicationListSerializer
     
     def get_queryset(self):
@@ -325,7 +325,7 @@ class FirstAiderActiveCommunicationsAPIView(generics.ListAPIView):
     Get active communications for first aider
     GET /api/hospital-comms/communications/first-aider-active/
     """
-    permission_classes = [permissions.IsAuthenticated & IsFirstAider]
+    permission_classes = [permissions.IsAuthenticated & IsFirstAider, IsSystemAdmin]
     serializer_class = EmergencyHospitalCommunicationListSerializer
     
     def get_queryset(self):
@@ -340,7 +340,7 @@ class AcknowledgeCommunicationAPIView(APIView):
     Hospital acknowledges receipt of emergency alert
     POST /api/hospital-comms/communications/{pk}/acknowledge/
     """
-    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff]
+    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff, IsSystemAdmin]
     
     def post(self, request, pk):
         communication = get_object_or_404(EmergencyHospitalCommunication, pk=pk)
@@ -373,7 +373,7 @@ class UpdatePreparationAPIView(APIView):
     Update hospital preparation status
     POST /api/hospital-comms/communications/{pk}/update-preparation/
     """
-    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff]
+    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff, IsSystemAdmin]
     
     def post(self, request, pk):
         communication = get_object_or_404(EmergencyHospitalCommunication, pk=pk)
@@ -409,7 +409,7 @@ class AddAssessmentAPIView(APIView):
     Add detailed first aider assessment
     POST /api/hospital-comms/communications/{pk}/add-assessment/
     """
-    permission_classes = [permissions.IsAuthenticated & IsFirstAider]
+    permission_classes = [permissions.IsAuthenticated & IsFirstAider, IsSystemAdmin]
     
     def post(self, request, pk):
         communication = get_object_or_404(EmergencyHospitalCommunication, pk=pk)

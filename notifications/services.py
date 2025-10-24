@@ -281,7 +281,7 @@ class EmailService(BaseNotificationService):
     """
     Email notification service
     """
-    
+        
     def __init__(self):
         super().__init__()
         self.provider_name = "email"

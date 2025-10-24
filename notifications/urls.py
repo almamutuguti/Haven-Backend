@@ -4,7 +4,6 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
-router.register(r'templates', views.NotificationTemplateViewSet, basename='notification-template')
 router.register(r'preferences', views.UserNotificationPreferenceViewSet, basename='notification-preference')
 router.register(r'sms-logs', views.SMSLogViewSet, basename='sms-log')
 router.register(r'push-logs', views.PushNotificationLogViewSet, basename='push-log')
@@ -47,11 +46,7 @@ urlpatterns += [
         views.NotificationPreferenceToggleAPIView.as_view(),
         name='preference-toggle'
     ),
-    path(
-        'api/templates/<uuid:pk>/test/',
-        views.TestNotificationTemplateAPIView.as_view(),
-        name='test-notification-template'
-    ),
+
     path(
         'api/system-stats/',
         views.AdminNotificationStatsAPIView.as_view(),

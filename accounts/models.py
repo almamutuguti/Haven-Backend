@@ -70,7 +70,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     # For First Aiders - CHANGED: certification_level → registration_number
     badge_number = models.CharField(max_length=50, unique=True)
-    registration_number = models.CharField(max_length=100, blank=True, null=True)  # NEW FIELD
+    registration_number = models.CharField(max_length=100, blank=True, null=True)  
     
     # # For Hospital Staff
     # hospital = models.ForeignKey(
@@ -90,8 +90,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     objects = CustomUserManager()
     
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email']
+    USERNAME_FIELD = 'username' # The unique identifier for authentication
+    REQUIRED_FIELDS = ['email'] # Fields required when creating a superuser
 
 
     def __str__(self):
