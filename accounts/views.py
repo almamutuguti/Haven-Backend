@@ -8,6 +8,7 @@ from django.db.models import Q
 from accounts.permissions import IsSystemAdmin
 from .models import CustomUser
 from .serializers import (
+    AdminUserUpdateSerializer,
     UserRegistrationSerializer, 
     LoginSerializer,
     UserProfileSerializer
@@ -165,3 +166,45 @@ class UsersByTypeAPIView(generics.ListAPIView):
             queryset = queryset.filter(role=role)
             
         return queryset
+    
+class UserUpdateAPIView(generics.UpdateAPIView):
+    serializer_class = AdminUserUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    queryset = CustomUser.objects.all()
+    lookup_field = 'id'
+    lookup_url_kwarg = 'user_id'
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response({
+            'message': 'User updated successfully',
+            'user': UserProfileSerializer(instance).data
+        })
+
+class AdminUserDeleteAPIView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    queryset = CustomUser.objects.all()
+    lookup_field = 'id'
+    lookup_url_kwarg = 'user_id'
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # Prevent admin from deleting themselves
+        if instance == request.user:
+            return Response({
+                'error': 'You cannot delete your own account'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response({
+            'message': 'User deleted successfully'
+        }, status=status.HTTP_200_OK)
+
+
+    

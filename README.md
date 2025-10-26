@@ -19,7 +19,6 @@ A scalable, mission-critical backend architecture for the Haven emergency respon
 **Features:**
 - One-tap emergency activation
 - Real-time location tracking
-- Multi-factor alert verification
 - Alert prioritization (critical, high, medium)
 - Duplicate alert prevention
 - Emergency session management

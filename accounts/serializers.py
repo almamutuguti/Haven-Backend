@@ -80,12 +80,42 @@ class LoginSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
 
+    username = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    phone = serializers.CharField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    badge_number = serializers.CharField(read_only=True)
+    registration_number = serializers.CharField(read_only=True)
     class Meta:
         model = CustomUser
         fields = (
-            'id', 'badge_number', 'username', 'email', 'phone', 'role',
-            'first_name', 'last_name', 'registration_number', 
+            'id', 'username', 'email', 'phone', 'role', 'first_name', 
+            'last_name', 'badge_number', 'registration_number',
             'emergency_contact_name', 'emergency_contact_phone',
-            'date_joined', 'last_login'
+            'date_joined', 'is_active', 'is_staff'
         )
-        read_only_fields = ('id', 'date_joined', 'last_login')
+
+
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = (
+            'first_name', 'last_name', 'email', 'phone',
+            'emergency_contact_name', 'emergency_contact_phone'
+        )
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = (
+            'first_name', 'last_name', 'email', 'phone', 'role',
+            'emergency_contact_name', 'emergency_contact_phone',
+            'is_active', 'badge_number', 'registration_number'
+        )
+    
+    def validate_role(self, value):
+        # Ensure the role is valid
+        valid_roles = ['system_admin', 'hospital_staff', 'first_aider', 'superuser']
+        if value not in valid_roles:
+            raise serializers.ValidationError(f"Invalid role: {value}. Must be one of {valid_roles}.")
+        return value
