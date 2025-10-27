@@ -52,4 +52,30 @@ urlpatterns += [
         views.AdminNotificationStatsAPIView.as_view(),
         name='system-stats'
     ),
+
+    path(
+        'api/send-email/',
+        views.EmailNotificationAPIView.as_view(),
+        name='send-direct-notification'
+    ),
+
+    path(
+        'api/send-sms/',
+        views.SMSNotificationAPIView.as_view(),
+        name='send-sms-notification'
+    ),
+
+    path(
+        'api/send-single/',
+        views.SingleNotificationAPIView.as_view(),
+        name='send-direct-notification'
+    ),
+
+    path(
+        'api/status/<uuid:notification_id>/',
+        views.NotificationStatusAPIView.as_view(),
+        name='notification-status'
+    ),
+
+
 ]

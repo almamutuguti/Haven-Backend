@@ -1,3 +1,4 @@
+from email.message import EmailMessage
 import logging
 import requests
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from .models import (
     EmailLog,
     UserNotificationPreference
 )
+
+from django.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +290,7 @@ class EmailService(BaseNotificationService):
         self.provider_name = "email"
     
     def send(self, notification: Notification) -> bool:
-        """Send email notification"""
+        """Send actual email notification"""
         try:
             # Check if user has email
             if not notification.user.email:
@@ -299,27 +302,78 @@ class EmailService(BaseNotificationService):
                 logger.info(f"Email disabled for user: {notification.user.id}")
                 return False
             
-            # In a real implementation, you'd use Django's send_mail or a service like SendGrid
-            # For now, we'll simulate success
-            log_data = {
-                'recipient': notification.user.email,
-                'subject': notification.title,
-                'html_content': f"<p>{notification.message}</p>",
-                'text_content': notification.message,
-                'status': 'sent',
-            }
+            # Prepare email content
+            subject = self._format_subject(notification)
+            message = self._format_message(notification)
             
-            return self.handle_response(
-                notification,
-                {'success': True, 'log_data': log_data},
-                EmailLog
+            # Method 1: Using send_mail (Simpler)
+            sent_count = send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[notification.user.email],
+                fail_silently=False,
             )
+            
+            if sent_count > 0:
+                log_data = {
+                    'recipient': notification.user.email,
+                    'subject': subject,
+                    'text_content': message,
+                    'status': 'sent',
+                    'provider_message_id': f"email_{notification.id}",
+                }
+                
+                logger.info(f"Email sent successfully to {notification.user.email}")
+                return self.handle_response(
+                    notification,
+                    {'success': True, 'log_data': log_data},
+                    EmailLog
+                )
+            else:
+                logger.error(f"Email sending failed for {notification.user.email}")
+                return self.handle_response(
+                    notification,
+                    {'success': False, 'error': 'Email sending failed - no emails sent'}
+                )
             
         except Exception as e:
             logger.error(f"Email sending error: {str(e)}")
             notification.status = 'failed'
             notification.save()
             return False
+    
+    def _format_subject(self, notification: Notification) -> str:
+        """Format email subject"""
+        priority_prefix = {
+            'critical': 'critical ',
+            'high': 'high',
+            'medium': 'medium ',
+            'low': 'low'
+        }
+        
+        prefix = priority_prefix.get(notification.priority, '')
+        return f"{prefix}{notification.title}"
+    
+    def _format_message(self, notification: Notification) -> str:
+        """Format email message content"""
+        user_name = notification.user.get_full_name() or "User"
+        
+        message_lines = [
+            f"Dear {user_name},",
+            "",
+            notification.message,
+            "",
+            "---",
+            f"Notification Type: {notification.notification_type}",
+            f"Priority: {notification.priority}",
+            f"Sent: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "This is an automated message from HAVEN Emergency System.",
+            "Please do not reply to this email."
+        ]
+        
+        return "\n".join(message_lines)
     
     def _can_send_email(self, user) -> bool:
         """Check if email can be sent to user"""
@@ -328,7 +382,8 @@ class EmailService(BaseNotificationService):
             return preferences.email_enabled
         except UserNotificationPreference.DoesNotExist:
             return True
-
+        
+        
 class VoiceCallService(BaseNotificationService):
     """
     Voice call notification service

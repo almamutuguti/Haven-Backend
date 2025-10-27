@@ -196,5 +196,20 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
 }
 
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+
+
+
+
+# Africa's Talking SMS Configuration
+AFRICAS_TALKING_API_KEY = config('AFRICAS_TALKING_API_KEY', '')
+AFRICAS_TALKING_USERNAME = config('AFRICAS_TALKING_USERNAME', '')
+SMS_SENDER_ID = config('SMS_SENDER_ID')
+
 
 

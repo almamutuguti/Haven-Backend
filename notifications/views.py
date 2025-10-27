@@ -1,3 +1,4 @@
+from venv import logger
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, generics, permissions
 from rest_framework.views import APIView
@@ -6,6 +7,8 @@ from rest_framework.decorators import action
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+
+from accounts.models import CustomUser
 from .models import (
     Notification,
     NotificationTemplate,
@@ -15,9 +18,11 @@ from .models import (
     UserNotificationPreference
 )
 from .serializers import (
+    DirectNotificationSerializer,
     NotificationSerializer,
     NotificationCreateSerializer,
     NotificationTemplateSerializer,
+    SingleNotificationSerializer,
     UserNotificationPreferenceSerializer,
     SMSLogSerializer,
     PushNotificationLogSerializer,
@@ -591,3 +596,267 @@ class AdminNotificationStatsAPIView(APIView):
         }
         
         return Response(stats_data)
+    
+
+
+
+class EmailNotificationAPIView(APIView):
+    """
+    API for sending email notifications
+    POST /api/notifications/send-email/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = DirectNotificationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            users = CustomUser.objects.filter(id__in=user_ids)
+            
+            notifications = []
+            orchestrator = NotificationOrchestrator()
+            results = {
+                'total': len(users),
+                'success': 0,
+                'failed': 0,
+                'details': []
+            }
+
+            for user in users:
+                try:
+                    # Create notification
+                    notification = Notification.objects.create(
+                        user=user,
+                        title=serializer.validated_data['title'],
+                        message=serializer.validated_data['message'],
+                        notification_type=serializer.validated_data['notification_type'],
+                        channel='email',  # Force email channel
+                        priority=serializer.validated_data['priority'],
+                        emergency_alert_id=serializer.validated_data.get('emergency_alert_id'),
+                        hospital_communication_id=serializer.validated_data.get('hospital_communication_id'),
+                        metadata=serializer.validated_data.get('metadata', {})
+                    )
+                    
+                    # Send notification
+                    success = orchestrator.send_notification(notification)
+                    
+                    if success:
+                        results['success'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_email': user.email,
+                            'status': 'sent',
+                            'notification_id': notification.id
+                        })
+                    else:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_email': user.email,
+                            'status': 'failed',
+                            'notification_id': notification.id
+                        })
+                    
+                    notifications.append(notification)
+                    
+                except Exception as e:
+                    logger.error(f"Error sending email to user {user.id}: {str(e)}")
+                    results['failed'] += 1
+                    results['details'].append({
+                        'user_id': user.id,
+                        'user_email': user.email,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+
+            return Response({
+                'status': 'success',
+                'message': f"Email notifications sent: {results['success']} successful, {results['failed']} failed",
+                'results': results
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SMSNotificationAPIView(APIView):
+    """
+    API for sending SMS notifications
+    POST /api/notifications/send-sms/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = DirectNotificationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            users = CustomUser.objects.filter(id__in=user_ids)
+            
+            notifications = []
+            orchestrator = NotificationOrchestrator()
+            results = {
+                'total': len(users),
+                'success': 0,
+                'failed': 0,
+                'details': []
+            }
+
+            for user in users:
+                try:
+                    # Check if user has phone number
+                    if not user.phone:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'error': 'User has no phone number'
+                        })
+                        continue
+
+                    # Create notification
+                    notification = Notification.objects.create(
+                        user=user,
+                        title=serializer.validated_data['title'],
+                        message=serializer.validated_data['message'],
+                        notification_type=serializer.validated_data['notification_type'],
+                        channel='sms',  # Force SMS channel
+                        priority=serializer.validated_data['priority'],
+                        emergency_alert_id=serializer.validated_data.get('emergency_alert_id'),
+                        hospital_communication_id=serializer.validated_data.get('hospital_communication_id'),
+                        metadata=serializer.validated_data.get('metadata', {})
+                    )
+                    
+                    # Send notification
+                    success = orchestrator.send_notification(notification)
+                    
+                    if success:
+                        results['success'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'sent',
+                            'notification_id': notification.id
+                        })
+                    else:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'notification_id': notification.id
+                        })
+                    
+                    notifications.append(notification)
+                    
+                except Exception as e:
+                    logger.error(f"Error sending SMS to user {user.id}: {str(e)}")
+                    results['failed'] += 1
+                    results['details'].append({
+                        'user_id': user.id,
+                        'user_phone': user.phone,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+
+            return Response({
+                'status': 'success',
+                'message': f"SMS notifications sent: {results['success']} successful, {results['failed']} failed",
+                'results': results
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SingleNotificationAPIView(APIView):
+    """
+    API for sending single notification (email or SMS)
+    POST /api/notifications/send-single/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = SingleNotificationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            try:
+                user = CustomUser.objects.get(id=serializer.validated_data['user_id'])
+                channel = serializer.validated_data['channel']
+                
+                # Create notification
+                notification = Notification.objects.create(
+                    user=user,
+                    title=serializer.validated_data['title'],
+                    message=serializer.validated_data['message'],
+                    notification_type=serializer.validated_data['notification_type'],
+                    channel=channel,
+                    priority=serializer.validated_data['priority'],
+                    emergency_alert_id=serializer.validated_data.get('emergency_alert_id'),
+                    hospital_communication_id=serializer.validated_data.get('hospital_communication_id'),
+                    metadata=serializer.validated_data.get('metadata', {})
+                )
+                
+                # Send notification
+                orchestrator = NotificationOrchestrator()
+                success = orchestrator.send_notification(notification)
+                
+                if success:
+                    return Response({
+                        'status': 'success',
+                        'message': f'{channel.upper()} notification sent successfully',
+                        'notification_id': notification.id,
+                        'user_id': user.id,
+                        'channel': channel
+                    }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': f'Failed to send {channel} notification',
+                        'notification_id': notification.id
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'User not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                logger.error(f"Error sending notification: {str(e)}")
+                return Response({
+                    'status': 'error',
+                    'message': f'Internal server error: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NotificationStatusAPIView(APIView):
+    """
+    API for checking notification status
+    GET /api/notifications/status/<notification_id>/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, notification_id):
+        try:
+            notification = Notification.objects.get(id=notification_id)
+            
+            # Check if user has permission to view this notification
+            if request.user != notification.user and not request.user.is_staff:
+                return Response({
+                    'status': 'error',
+                    'message': 'Permission denied'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            serializer = NotificationSerializer(notification)
+            return Response({
+                'status': 'success',
+                'notification': serializer.data
+            })
+            
+        except Notification.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': 'Notification not found'
+            }, status=status.HTTP_404_NOT_FOUND)

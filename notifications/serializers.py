@@ -153,3 +153,67 @@ class NotificationStatsSerializer(serializers.Serializer):
     average_delivery_time = serializers.FloatField()
     channel_breakdown = serializers.JSONField()
     type_breakdown = serializers.JSONField()
+
+
+class DirectNotificationSerializer(serializers.Serializer):
+    """Serializer for sending direct notifications via email or SMS"""
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text="List of user IDs to send notifications to"
+    )
+    title = serializers.CharField(max_length=255)
+    message = serializers.CharField()
+    notification_type = serializers.ChoiceField(
+        choices=Notification.NOTIFICATION_TYPES,
+        default='general'
+    )
+    channel = serializers.ChoiceField(
+        choices=Notification.CHANNEL_CHOICES,
+        help_text="Use 'email' for email, 'sms' for SMS"
+    )
+    priority = serializers.ChoiceField(
+        choices=Notification.PRIORITY_CHOICES,
+        default='medium'
+    )
+    emergency_alert_id = serializers.IntegerField(required=False)
+    hospital_communication_id = serializers.IntegerField(required=False)
+    metadata = serializers.JSONField(required=False, default=dict)
+
+    def validate_user_ids(self, value):
+        """Validate that all user IDs exist"""
+        users = User.objects.filter(id__in=value)
+        if len(users) != len(value):
+            raise serializers.ValidationError("One or more user IDs are invalid")
+        return value
+
+    def validate_channel(self, value):
+        """Validate channel is either email or SMS"""
+        if value not in ['email', 'sms']:
+            raise serializers.ValidationError("Channel must be either 'email' or 'sms'")
+        return value
+
+class SingleNotificationSerializer(serializers.Serializer):
+    """Serializer for sending notification to a single user"""
+    user_id = serializers.IntegerField()
+    title = serializers.CharField(max_length=255)
+    message = serializers.CharField()
+    notification_type = serializers.ChoiceField(
+        choices=Notification.NOTIFICATION_TYPES,
+        default='general'
+    )
+    channel = serializers.ChoiceField(
+        choices=Notification.CHANNEL_CHOICES
+    )
+    priority = serializers.ChoiceField(
+        choices=Notification.PRIORITY_CHOICES,
+        default='medium'
+    )
+    emergency_alert_id = serializers.IntegerField(required=False)
+    hospital_communication_id = serializers.IntegerField(required=False)
+    metadata = serializers.JSONField(required=False, default=dict)
+
+    def validate_user_id(self, value):
+        """Validate that user ID exists"""
+        if not User.objects.filter(id=value).exists():
+            raise serializers.ValidationError("User ID is invalid")
+        return value
