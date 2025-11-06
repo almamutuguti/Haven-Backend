@@ -860,3 +860,183 @@ class NotificationStatusAPIView(APIView):
                 'status': 'error',
                 'message': 'Notification not found'
             }, status=status.HTTP_404_NOT_FOUND)
+        
+
+class SMSNotificationAPIView(APIView):
+    """
+    API for sending SMS notifications
+    POST /api/notifications/send-sms/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = DirectNotificationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            users = CustomUser.objects.filter(id__in=user_ids)
+            
+            notifications = []
+            orchestrator = NotificationOrchestrator()
+            results = {
+                'total': len(users),
+                'success': 0,
+                'failed': 0,
+                'details': []
+            }
+
+            for user in users:
+                try:
+                    # Check if user has phone number
+                    if not user.phone:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'error': 'User has no phone number'
+                        })
+                        continue
+
+                    # Create notification
+                    notification = Notification.objects.create(
+                        user=user,
+                        title=serializer.validated_data['title'],
+                        message=serializer.validated_data['message'],
+                        notification_type=serializer.validated_data['notification_type'],
+                        channel='sms',
+                        priority=serializer.validated_data['priority'],
+                        emergency_alert_id=serializer.validated_data.get('emergency_alert_id'),
+                        hospital_communication_id=serializer.validated_data.get('hospital_communication_id'),
+                        metadata=serializer.validated_data.get('metadata', {})
+                    )
+                    
+                    # Send notification
+                    success = orchestrator.send_notification(notification)
+                    
+                    if success:
+                        results['success'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'sent',
+                            'notification_id': notification.id
+                        })
+                    else:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'notification_id': notification.id
+                        })
+                    
+                    notifications.append(notification)
+                    
+                except Exception as e:
+                    logger.error(f"Error sending SMS to user {user.id}: {str(e)}")
+                    results['failed'] += 1
+                    results['details'].append({
+                        'user_id': user.id,
+                        'user_phone': user.phone,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+
+            return Response({
+                'status': 'success',
+                'message': f"SMS notifications sent: {results['success']} successful, {results['failed']} failed",
+                'results': results
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VoiceNotificationAPIView(APIView):
+    """
+    API for sending voice call notifications
+    POST /api/notifications/send-voice/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = DirectNotificationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            users = CustomUser.objects.filter(id__in=user_ids)
+            
+            notifications = []
+            orchestrator = NotificationOrchestrator()
+            results = {
+                'total': len(users),
+                'success': 0,
+                'failed': 0,
+                'details': []
+            }
+
+            for user in users:
+                try:
+                    # Check if user has phone number
+                    if not user.phone:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'error': 'User has no phone number'
+                        })
+                        continue
+
+                    # Create notification
+                    notification = Notification.objects.create(
+                        user=user,
+                        title=serializer.validated_data['title'],
+                        message=serializer.validated_data['message'],
+                        notification_type=serializer.validated_data['notification_type'],
+                        channel='voice',
+                        priority=serializer.validated_data['priority'],
+                        emergency_alert_id=serializer.validated_data.get('emergency_alert_id'),
+                        hospital_communication_id=serializer.validated_data.get('hospital_communication_id'),
+                        metadata=serializer.validated_data.get('metadata', {})
+                    )
+                    
+                    # Send notification
+                    success = orchestrator.send_notification(notification)
+                    
+                    if success:
+                        results['success'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'initiated',
+                            'notification_id': notification.id
+                        })
+                    else:
+                        results['failed'] += 1
+                        results['details'].append({
+                            'user_id': user.id,
+                            'user_phone': user.phone,
+                            'status': 'failed',
+                            'notification_id': notification.id
+                        })
+                    
+                    notifications.append(notification)
+                    
+                except Exception as e:
+                    logger.error(f"Error sending voice call to user {user.id}: {str(e)}")
+                    results['failed'] += 1
+                    results['details'].append({
+                        'user_id': user.id,
+                        'user_phone': user.phone,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+
+            return Response({
+                'status': 'success',
+                'message': f"Voice call notifications sent: {results['success']} successful, {results['failed']} failed",
+                'results': results
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -2,18 +2,27 @@ from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django.db.models import Q
 
-from accounts.permissions import IsSystemAdmin
-from .models import CustomUser
+from .permissions import IsSystemAdmin
+from .models import CustomUser, Organization
+
+# Import Hospital model with error handling
+try:
+    from hospitals.models import Hospital
+    HAS_HOSPITALS = True
+except ImportError:
+    HAS_HOSPITALS = False
+    Hospital = None
+
 from .serializers import (
     AdminUserUpdateSerializer,
     UserRegistrationSerializer, 
     LoginSerializer,
-    UserProfileSerializer
+    UserProfileSerializer,
+    HospitalSerializer,
+    OrganizationSerializer
 )
-from .services import EmergencyAccessService
 
 
 class RegisterAPIView(generics.CreateAPIView):
@@ -23,7 +32,7 @@ class RegisterAPIView(generics.CreateAPIView):
     
     def create(self, request, *args, **kwargs):
         # Check for existing users
-        existing_users = CustomUser.objects.all().filter(
+        existing_users = CustomUser.objects.filter(
             Q(email=request.data.get('email')) | 
             Q(phone=request.data.get('phone')) |
             Q(username=request.data.get('username'))
@@ -41,7 +50,6 @@ class RegisterAPIView(generics.CreateAPIView):
         return Response({
             'message': 'User registered successfully',
             'user': UserProfileSerializer(user).data,
-
         }, status=status.HTTP_201_CREATED)
 
 
@@ -84,8 +92,8 @@ class RefreshTokenAPIView(APIView):
                 'error': 'Invalid refresh token'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-class UserProfileAPIView(APIView):
 
+class UserProfileAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
@@ -93,7 +101,12 @@ class UserProfileAPIView(APIView):
         return Response(serializer.data)
     
     def put(self, request):
-        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
+        serializer = UserProfileSerializer(
+            request.user, 
+            data=request.data, 
+            partial=True,
+            context={'request': request}
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -116,22 +129,18 @@ class LogoutAPIView(APIView):
 
 
 class UserListAPIView(generics.ListAPIView):
-    queryset = CustomUser.objects.all()
     serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
     
     def get_queryset(self):
-        # Only allow system admins and hospital admins to view all users
-        if self.request.user.role not in ['system_admin']:
-            return Response({'error': 'You do not have permission to view this resource.'}, status=status.HTTP_403_FORBIDDEN)
-        return super().get_queryset()
+        return CustomUser.objects.all().order_by('-date_joined')
 
 
 class ActiveUsersCountAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
     
     def get(self, request):
-        active_users = CustomUser.objects.all().filter(is_active=True)
+        active_users = CustomUser.objects.filter(is_active=True)
         return Response({
             'active_users_count': active_users.count()
         })
@@ -166,7 +175,8 @@ class UsersByTypeAPIView(generics.ListAPIView):
             queryset = queryset.filter(role=role)
             
         return queryset
-    
+
+
 class UserUpdateAPIView(generics.UpdateAPIView):
     serializer_class = AdminUserUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
@@ -185,6 +195,7 @@ class UserUpdateAPIView(generics.UpdateAPIView):
             'message': 'User updated successfully',
             'user': UserProfileSerializer(instance).data
         })
+
 
 class AdminUserDeleteAPIView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
@@ -207,4 +218,19 @@ class AdminUserDeleteAPIView(generics.DestroyAPIView):
         }, status=status.HTTP_200_OK)
 
 
+class HospitalListAPIView(generics.ListAPIView):
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.AllowAny]
     
+    def get_queryset(self):
+        if HAS_HOSPITALS:
+            return Hospital.objects.all().order_by('name')
+        return Hospital.objects.none()
+
+
+class OrganizationListAPIView(generics.ListAPIView):
+    serializer_class = OrganizationSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        return Organization.objects.all().order_by('name')

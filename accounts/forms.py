@@ -31,6 +31,7 @@ class CustomUserCreationForm(UserCreationForm):
         fields = (
             'badge_number', 'username', 'email', 'phone', 
             'role', 'first_name', 'last_name', 'registration_number',
+            'hospital', 'organization',
             'emergency_contact_name', 'emergency_contact_phone'
         )
         widgets = {
@@ -56,7 +57,8 @@ class CustomUserCreationForm(UserCreationForm):
             }),
             'role': forms.Select(attrs={
                 'class': 'form-control',
-                'style': 'width: 300px;'
+                'style': 'width: 300px;',
+                'onchange': 'toggleHospitalOrganization()'
             }),
             'first_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -73,6 +75,16 @@ class CustomUserCreationForm(UserCreationForm):
                 'placeholder': 'e.g., KRCFA12345, MOH7890',
                 'style': 'width: 300px;'
             }),
+            'hospital': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_hospital'
+            }),
+            'organization': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_organization'
+            }),
             'emergency_contact_name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g., Jane Doe',
@@ -88,6 +100,8 @@ class CustomUserCreationForm(UserCreationForm):
             'badge_number': 'Unique identifier for the user (e.g., FA001 for First Aider 001)',
             'role': 'Select the role of this user in the system',
             'phone': 'Kenyan format: +254712345678',
+            'hospital': 'Required for Hospital Staff',
+            'organization': 'Required for First Aiders',
         }
 
     def clean_badge_number(self):
@@ -102,6 +116,24 @@ class CustomUserCreationForm(UserCreationForm):
             raise ValidationError("A user with this phone number already exists.")
         return phone
 
+    def clean(self):
+        cleaned_data = super().clean()
+        role = cleaned_data.get('role')
+        hospital = cleaned_data.get('hospital')
+        organization = cleaned_data.get('organization')
+        
+        if role == 'hospital_staff' and not hospital:
+            raise ValidationError({
+                'hospital': 'Hospital is required for Hospital Staff.'
+            })
+        
+        if role == 'first_aider' and not organization:
+            raise ValidationError({
+                'organization': 'Organization is required for First Aiders.'
+            })
+        
+        return cleaned_data
+
 class CustomUserChangeForm(UserChangeForm):
     """Form for updating existing users"""
     
@@ -110,6 +142,7 @@ class CustomUserChangeForm(UserChangeForm):
         fields = (
             'badge_number', 'username', 'email', 'phone', 
             'role', 'first_name', 'last_name', 'registration_number',
+            'hospital', 'organization',
             'emergency_contact_name', 'emergency_contact_phone',
             'is_active', 'is_staff', 'is_superuser'
         )
@@ -132,7 +165,8 @@ class CustomUserChangeForm(UserChangeForm):
             }),
             'role': forms.Select(attrs={
                 'class': 'form-control',
-                'style': 'width: 300px;'
+                'style': 'width: 300px;',
+                'onchange': 'toggleHospitalOrganization()'
             }),
             'first_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -145,6 +179,16 @@ class CustomUserChangeForm(UserChangeForm):
             'registration_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'style': 'width: 300px;'
+            }),
+            'hospital': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_hospital'
+            }),
+            'organization': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_organization'
             }),
             'emergency_contact_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -169,7 +213,7 @@ class QuickUserCreateForm(forms.ModelForm):
     
     class Meta:
         model = CustomUser
-        fields = ('badge_number', 'username', 'role', 'password')
+        fields = ('badge_number', 'username', 'role', 'hospital', 'organization', 'password')
         widgets = {
             'badge_number': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -183,7 +227,18 @@ class QuickUserCreateForm(forms.ModelForm):
             }),
             'role': forms.Select(attrs={
                 'class': 'form-control',
-                'style': 'width: 300px;'
+                'style': 'width: 300px;',
+                'onchange': 'toggleHospitalOrganization()'
+            }),
+            'hospital': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_hospital'
+            }),
+            'organization': forms.Select(attrs={
+                'class': 'form-control',
+                'style': 'width: 300px;',
+                'id': 'id_organization'
             }),
         }
     

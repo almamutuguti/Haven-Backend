@@ -27,7 +27,11 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [  
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+]
 
 
 # Application definition
@@ -58,6 +62,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -66,6 +71,36 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+
 
 ROOT_URLCONF = 'HavenBackend.urls'
 
@@ -207,8 +242,8 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
 
 # Africa's Talking SMS Configuration
-AFRICAS_TALKING_API_KEY = config('AFRICAS_TALKING_API_KEY', '')
-AFRICAS_TALKING_USERNAME = config('AFRICAS_TALKING_USERNAME', '')
+AFRICAS_TALKING_API_KEY = config('AFRICAS_TALKING_API_KEY')
+AFRICAS_TALKING_USERNAME = config('AFRICAS_TALKING_USERNAME')
 SMS_SENDER_ID = config('SMS_SENDER_ID')
 
 

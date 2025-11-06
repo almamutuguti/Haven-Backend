@@ -57,31 +57,58 @@ class BaseNotificationService:
 
 class SMSService(BaseNotificationService):
     """
-    SMS notification service using Africa's Talking
+    Real Africa's Talking SMS Service
     """
     
     def __init__(self):
         super().__init__()
         self.provider_name = "africas_talking"
-        self.api_key = getattr(settings, 'AFRICAS_TALKING_API_KEY', '')
-        self.username = getattr(settings, 'AFRICAS_TALKING_USERNAME', '')
-        self.base_url = 'https://api.africastalking.com/version1'
+        self.api_key = getattr(settings, 'AFRICAS_TALKING_API_KEY')
+        self.username = getattr(settings, 'AFRICAS_TALKING_USERNAME')
+        self.base_url = 'https://api.africastalking.com/version1/messaging/'
+        
+        # Validate credentials on init
+        if not self._validate_credentials():
+            raise Exception("Africa's Talking credentials are invalid")
+    
+    def _validate_credentials(self):
+        """Validate credentials are working"""
+        if not self.api_key or not self.username:
+            logger.error("Missing Africa's Talking credentials")
+            return False
+            
+        headers = {'ApiKey': self.api_key, 'Accept': 'application/json'}
+        try:
+            response = requests.get(
+                f'https://api.africastalking.com/version1/user?username={self.username}',
+                headers=headers,
+                timeout=10
+            )
+            if response.status_code == 200:
+                logger.info("Africa's Talking credentials validated successfully")
+                return True
+            else:
+                logger.error(f"Credentials validation failed: {response.status_code}")
+                return False
+        except Exception as e:
+            logger.error(f"Credentials validation error: {str(e)}")
+            return False
     
     def send(self, notification: Notification) -> bool:
-        """Send SMS via Africa's Talking"""
+        """Send real SMS via Africa's Talking"""
         try:
-            # Get user's phone number
-            phone = notification.user.phone
+            # Get and validate phone number
+            phone = self._format_phone_number(notification.user.phone)
             if not phone:
-                logger.error(f"No phone number for user: {notification.user.id}")
+                logger.error(f"Invalid phone number for user {notification.user.id}")
                 return False
             
             # Check user preferences
             if not self._can_send_sms(notification.user):
-                logger.info(f"SMS disabled for user: {notification.user.id}")
+                logger.info(f"SMS disabled for user {notification.user.id}")
                 return False
             
-            # Prepare SMS data
+            # Prepare the request
             headers = {
                 'ApiKey': self.api_key,
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -91,70 +118,139 @@ class SMSService(BaseNotificationService):
             data = {
                 'username': self.username,
                 'to': phone,
-                'message': notification.message,
+                'message': self._format_sms_message(notification),
                 'from': getattr(settings, 'SMS_SENDER_ID', 'HAVEN')
             }
             
+            logger.info(f"Sending SMS to {phone}: {data['message'][:50]}...")
+            
             # Make API request
             response = requests.post(
-                f"{self.base_url}/messaging",
+                self.base_url,
                 data=data,
                 headers=headers,
                 timeout=30
             )
             
-            return self._handle_sms_response(notification, response)
+            return self._handle_api_response(notification, response, phone)
             
         except Exception as e:
-            logger.error(f"SMS sending error: {str(e)}")
+            logger.error(f"SMS sending failed: {str(e)}")
             notification.status = 'failed'
             notification.save()
             return False
     
-    def _can_send_sms(self, user) -> bool:
-        """Check if SMS can be sent to user"""
-        try:
-            preferences = user.notification_preferences
-            return preferences.sms_enabled and not preferences.is_quiet_hours()
-        except UserNotificationPreference.DoesNotExist:
-            return True  # Default to enabled if no preferences
+    def _format_phone_number(self, phone: str) -> str:
+        """Format phone number for Africa's Talking"""
+        if not phone:
+            return None
+        
+        # Remove all non-digit characters
+        cleaned = ''.join(filter(str.isdigit, phone))
+        
+        # Convert to international format
+        if cleaned.startswith('0') and len(cleaned) == 10:
+            # 0712345678 -> 254712345678
+            return '254' + cleaned[1:]
+        elif cleaned.startswith('254') and len(cleaned) == 12:
+            # 254712345678 -> 254712345678 (already correct)
+            return cleaned
+        elif cleaned.startswith('7') and len(cleaned) == 9:
+            # 712345678 -> 254712345678
+            return '254' + cleaned
+        else:
+            logger.error(f"Unrecognized phone format: {phone} -> {cleaned}")
+            return None
     
-    def _handle_sms_response(self, notification: Notification, response) -> bool:
-        """Handle Africa's Talking SMS response"""
+    def _format_sms_message(self, notification: Notification) -> str:
+        """Format SMS message (max 160 chars)"""
+        message = notification.message
+        
+        # Add priority prefix
+        if notification.priority == 'critical':
+            message = f"URGENT: {message}"
+        elif notification.priority == 'high':
+            message = f"IMPORTANT: {message}"
+        
+        # Truncate if too long
+        if len(message) > 160:
+            message = message[:157] + "..."
+        
+        return message
+    
+    def _handle_api_response(self, notification: Notification, response, phone: str) -> bool:
+        """Handle Africa's Talking API response"""
+        logger.info(f"API Response Status: {response.status_code}")
+        logger.info(f"API Response Text: {response.text}")
+        
+        if response.status_code == 401:
+            error_msg = "Authentication failed - check API credentials"
+            logger.error(f"{error_msg}")
+            return self._handle_failure(notification, error_msg)
+        
+        if response.status_code != 201:
+            error_msg = f"API Error {response.status_code}: {response.text}"
+            logger.error(f"{error_msg}")
+            return self._handle_failure(notification, error_msg)
+        
         try:
             response_data = response.json()
+            message_data = response_data.get('SMSMessageData', {})
+            recipients = message_data.get('Recipients', [])
             
-            if response.status_code == 201 and response_data.get('SMSMessageData'):
-                message_data = response_data['SMSMessageData']
-                recipients = message_data.get('Recipients', [])
+            if recipients:
+                recipient = recipients[0]
+                status = recipient.get('status', 'Unknown')
                 
-                if recipients:
-                    recipient = recipients[0]
+                if status in ['Sent', 'Buffered', 'Submitted']:
+                    # Success!
                     log_data = {
-                        'phone': recipient.get('number'),
+                        'phone': phone,
                         'message': notification.message,
                         'message_id': recipient.get('messageId', ''),
                         'provider_message_id': recipient.get('messageId', ''),
-                        'status': recipient.get('status', 'sent'),
+                        'status': 'sent',
                         'cost': float(recipient.get('cost', 0)),
+                        'status_code': status,
                     }
                     
+                    logger.info(f"SMS sent successfully to {phone}")
                     return self.handle_response(
                         notification,
                         {'success': True, 'log_data': log_data},
                         SMSLog
                     )
-            
-            # If we get here, something went wrong
-            error_msg = response_data.get('SMSMessageData', {}).get('Message', 'Unknown error')
-            return self.handle_response(
-                notification,
-                {'success': False, 'error': error_msg}
-            )
-            
+                else:
+                    error_msg = f"SMS failed with status: {status}"
+                    logger.error(f"{error_msg}")
+                    return self._handle_failure(notification, error_msg)
+            else:
+                error_msg = message_data.get('Message', 'No recipients in response')
+                logger.error(f"{error_msg}")
+                return self._handle_failure(notification, error_msg)
+                
         except Exception as e:
-            logger.error(f"Error handling SMS response: {str(e)}")
-            return False
+            error_msg = f"Error parsing API response: {str(e)}"
+            logger.error(f"{error_msg}")
+            return self._handle_failure(notification, error_msg)
+    
+    def _handle_failure(self, notification: Notification, error_msg: str) -> bool:
+        """Handle failed SMS sending"""
+        notification.status = 'failed'
+        notification.save()
+        return self.handle_response(
+            notification,
+            {'success': False, 'error': error_msg}
+        )
+    
+    def _can_send_sms(self, user) -> bool:
+        """Check if SMS can be sent to user"""
+        try:
+            preferences = UserNotificationPreference.objects.get(user=user)
+            return preferences.sms_enabled and not preferences.is_quiet_hours()
+        except UserNotificationPreference.DoesNotExist:
+            return True
+        
 
 class PushNotificationService(BaseNotificationService):
     """
@@ -386,28 +482,56 @@ class EmailService(BaseNotificationService):
         
 class VoiceCallService(BaseNotificationService):
     """
-    Voice call notification service
+    Voice call service using Africa's Talking Voice API
     """
     
     def __init__(self):
         super().__init__()
-        self.provider_name = "voice"
-    
+        self.provider_name = "africas_talking_voice"
+        self.api_key = getattr(settings, 'AFRICAS_TALKING_API_KEY', '')
+        self.username = getattr(settings, 'AFRICAS_TALKING_USERNAME', '')
+        self.voice_url = 'https://voice.africastalking.com/call'
+        
     def send(self, notification: Notification) -> bool:
         """Send voice call notification"""
         try:
-            # Check user preferences for voice calls
+            # Get user's phone number
+            phone = self._format_phone_number(notification.user.phone)
+            if not phone:
+                logger.error(f"No valid phone number for user: {notification.user.id}")
+                return False
+            
+            # Check user preferences
             if not self._can_send_voice(notification.user):
                 logger.info(f"Voice calls disabled for user: {notification.user.id}")
                 return False
             
-            # In a real implementation, you'd integrate with a voice service like Africa's Talking Voice
-            # or Twilio
-            logger.info(f"Voice call would be sent to {notification.user.phone}")
+            # Validate configuration
+            if not self.api_key or not self.username:
+                logger.error("Africa's Talking API credentials not configured")
+                return False
             
-            # For now, mark as sent (simulate success)
-            notification.mark_as_sent()
-            return True
+            # Prepare voice call data
+            headers = {
+                'ApiKey': self.api_key,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+            
+            data = {
+                'username': self.username,
+                'to': phone,
+                'from': getattr(settings, 'SMS_SENDER_ID', 'HAVEN'),
+            }
+            
+            # Make API request to initiate call
+            response = requests.post(
+                self.voice_url,
+                data=data,
+                headers=headers,
+                timeout=30
+            )
+            
+            return self._handle_voice_response(notification, response, phone)
             
         except Exception as e:
             logger.error(f"Voice call error: {str(e)}")
@@ -415,13 +539,70 @@ class VoiceCallService(BaseNotificationService):
             notification.save()
             return False
     
+    def _format_phone_number(self, phone: str) -> str:
+        """Format phone number for voice calls (same as SMS)"""
+        if not phone:
+            return None
+        
+        cleaned_phone = ''.join(filter(str.isdigit, phone))
+        
+        if cleaned_phone.startswith('0'):
+            cleaned_phone = '254' + cleaned_phone[1:]
+        elif cleaned_phone.startswith('254'):
+            cleaned_phone = cleaned_phone
+        elif cleaned_phone.startswith('+254'):
+            cleaned_phone = cleaned_phone[1:]
+        else:
+            cleaned_phone = '254' + cleaned_phone
+        
+        return cleaned_phone
+    
     def _can_send_voice(self, user) -> bool:
         """Check if voice call can be sent to user"""
         try:
-            preferences = user.notification_preferences
+            preferences = UserNotificationPreference.objects.get(user=user)
             return preferences.voice_enabled and not preferences.is_quiet_hours()
         except UserNotificationPreference.DoesNotExist:
             return True
+    
+    def _handle_voice_response(self, notification: Notification, response, phone: str) -> bool:
+        """Handle Africa's Talking Voice response"""
+        try:
+            if response.status_code != 200:
+                logger.error(f"Voice API error: {response.status_code} - {response.text}")
+                return self.handle_response(
+                    notification,
+                    {'success': False, 'error': f"HTTP {response.status_code}"}
+                )
+            
+            response_data = response.json()
+            logger.info(f"Voice API Response: {response_data}")
+            
+            if response_data.get('status') == 'Queued' or response_data.get('errorMessage') is None:
+                log_data = {
+                    'phone': phone,
+                    'message': notification.message,
+                    'call_id': response_data.get('entries', [{}])[0].get('sessionId', ''),
+                    'status': 'initiated',
+                    'provider_message_id': response_data.get('entries', [{}])[0].get('sessionId', ''),
+                }
+                
+                logger.info(f"Voice call initiated to {phone}")
+                return self.handle_response(
+                    notification,
+                    {'success': True, 'log_data': log_data}
+                )
+            else:
+                error_msg = response_data.get('errorMessage', 'Unknown error')
+                logger.error(f"Voice call failed: {error_msg}")
+                return self.handle_response(
+                    notification,
+                    {'success': False, 'error': error_msg}
+                )
+                
+        except Exception as e:
+            logger.error(f"Error handling voice response: {str(e)}")
+            return False
 
 class NotificationOrchestrator:
     """
@@ -461,23 +642,6 @@ class NotificationOrchestrator:
         
         return results
     
-    def send_emergency_alert(self, emergency_alert, users: List) -> Dict[str, int]:
-        """Send emergency alerts to multiple users"""
-        notifications = []
-        
-        for user in users:
-            notification = Notification.objects.create(
-                user=user,
-                title="Emergency Alert",
-                message=f"Emergency reported in your area. Alert ID: {emergency_alert.alert_id}",
-                notification_type='emergency_alert',
-                priority='critical',
-                channel='push',  # Default channel for emergency alerts
-                emergency_alert=emergency_alert
-            )
-            notifications.append(notification)
-        
-        return self.send_bulk_notifications(notifications)
 
 class NotificationTemplateService:
     """

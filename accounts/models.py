@@ -22,7 +22,6 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'system_admin')
 
-        
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
@@ -33,20 +32,64 @@ class CustomUserManager(BaseUserManager):
         
         return self.create_user(username, password, **extra_fields)
 
+
+class Organization(models.Model):
+    """Organization model for first aiders"""
+    ORGANIZATION_TYPE_CHOICES = [
+        ('red_cross', 'Red Cross Society'),
+        ('st_john', 'St. John Ambulance'),
+        ('community', 'Community Volunteers'),
+        ('corporate', 'Corporate First Aid'),
+        ('government', 'Government Agency'),
+        ('ngo', 'Non-Governmental Organization'),
+    ]
+
+    # Use AutoField instead of UUIDField to avoid migration issues
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255)
+    organization_type = models.CharField(max_length=20, choices=ORGANIZATION_TYPE_CHOICES, default='community')
+    description = models.TextField(blank=True)
+    
+    # Contact Information
+    contact_person = models.CharField(max_length=255, blank=True)
+    phone_regex = RegexValidator(regex=r'^\+?1?\d{9,15}$')
+    phone = models.CharField(validators=[phone_regex], max_length=17, blank=True)
+    email = models.EmailField(blank=True, null=True)
+    website = models.URLField(blank=True)
+    
+    # Location
+    address = models.TextField(blank=True)
+    
+    # Operational Status
+    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'organizations'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('system_admin', 'System Admin'),
         ('first_aider', 'First Aider'),
         ('hospital_staff', 'Hospital Staff'),
-
     )
     
     phone_regex = RegexValidator(
         regex=r'^\+?1?\d{9,15}$',
         message="Phone number must be in format: '+254712345678'."
     )
-    
 
+    # Use AutoField instead of UUIDField to avoid migration issues
+    id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='first_aider')
     
     # Required fields for AbstractBaseUser
@@ -68,19 +111,27 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         blank=True
     )
     
-    # For First Aiders - CHANGED: certification_level → registration_number
+    # For First Aiders
     badge_number = models.CharField(max_length=50, unique=True)
     registration_number = models.CharField(max_length=100, blank=True, null=True)  
     
-    # # For Hospital Staff
-    # hospital = models.ForeignKey(
-    #     'hospitals.Hospital', 
-    #     on_delete=models.SET_NULL, 
-    #     null=True, 
-    #     blank=True
-    # )
+    # Hospital and Organization relationships
+    hospital = models.ForeignKey(
+        'hospitals.Hospital',
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='staff'
+    )
     
-
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='first_aiders'
+    )
+    
     emergency_contact_name = models.CharField(max_length=100, blank=True)
     emergency_contact_phone = models.CharField(
         max_length=17, 
@@ -90,9 +141,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     objects = CustomUserManager()
     
-    USERNAME_FIELD = 'username' # The unique identifier for authentication
-    REQUIRED_FIELDS = ['email'] # Fields required when creating a superuser
-
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
 
     def __str__(self):
         role_display = self.get_role_display()
@@ -105,8 +155,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     def get_short_name(self):
         return self.first_name
+    
+    class Meta:
+        db_table = 'accounts_customusers'
+
 
 class EmergencyAccessLog(models.Model):
+    # Use AutoField instead of UUIDField to avoid migration issues
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     access_token = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -116,3 +172,6 @@ class EmergencyAccessLog(models.Model):
     
     def is_valid(self):
         return timezone.now() < self.expires_at
+    
+    class Meta:
+        db_table = 'accounts_emergency_access_logs'
