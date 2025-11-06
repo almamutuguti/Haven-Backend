@@ -16,4 +16,8 @@ urlpatterns = [
     path('api/users/<int:user_id>/update-profile/', views.UserUpdateAPIView.as_view(), name='update-user-profile'),
     path('api/users/<int:user_id>/delete/', views.AdminUserDeleteAPIView.as_view(), name='delete-user'),
     # path('api/users/edit/', views.EditProfileAPIView.as_view(), name='edit-user'),
+
+    # Hospital and Organization endpoints
+    path('api/hospitals/', views.HospitalListAPIView.as_view(), name='hospital-list'),
+    path('api/organizations/', views.OrganizationListAPIView.as_view(), name='organization-list'),
 ]
