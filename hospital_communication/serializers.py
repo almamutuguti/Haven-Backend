@@ -56,11 +56,11 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
     """Serializer for creating new emergency hospital communications"""
     emergency_alert_id = serializers.CharField(
         write_only=True,
+        max_length=50,  # Add max_length
         error_messages={
-        'invalid': 'Must be a valid alert ID.'
-    }
-
-)
+            'invalid': 'Must be a valid alert ID.'
+        }
+    )
     
     class Meta:
         model = EmergencyHospitalCommunication
@@ -72,9 +72,13 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
             'blood_type_required'
         ]
     
-    def validate_alert_id(self, value):
+    def validate_emergency_alert_id(self, value):  # Fixed method name
+        """Validate that the emergency alert exists"""
         try:
-            EmergencyAlert.objects.get(emergency_alert_id=value)
+            # Check what field stores your auto-generated IDs in EmergencyAlert
+            # If it's 'alert_id', use: EmergencyAlert.objects.get(alert_id=value)
+            # If it's 'emergency_alert_id', use: EmergencyAlert.objects.get(emergency_alert_id=value)
+            EmergencyAlert.objects.get(alert_id=value)  # Adjust this field name as needed
         except EmergencyAlert.DoesNotExist:
             raise serializers.ValidationError("Emergency alert not found")
         return value
@@ -91,8 +95,15 @@ class EmergencyHospitalCommunicationCreateSerializer(serializers.ModelSerializer
     
     def create(self, validated_data):
         emergency_alert_id = validated_data.pop('emergency_alert_id')
+        
+        # Get the actual EmergencyAlert object to use its UUID
+        try:
+            alert = EmergencyAlert.objects.get(alert_id=emergency_alert_id)  # Adjust field name
+        except EmergencyAlert.DoesNotExist:
+            raise serializers.ValidationError("Emergency alert not found")
+        
         communication = EmergencyHospitalCommunication.objects.create(
-            emergency_alert_id=emergency_alert_id,
+            emergency_alert_id=alert.id,  # Use the UUID ID, not the string
             **validated_data
         )
         return communication
@@ -141,14 +152,14 @@ class HospitalAcknowledgmentSerializer(serializers.Serializer):
     """Serializer for hospital acknowledgment"""
     acknowledged_by = serializers.PrimaryKeyRelatedField(
         # Use role instead of role
-        queryset=User.objects.filter(role='hospital_admin')
+        queryset=User.objects.filter(role='hospital_staff')
     )
     preparation_notes = serializers.CharField(required=False, allow_blank=True)
     
     def validate_acknowledged_by(self, value):
         # Use role instead of role
-        if value.role != 'hospital_admin':
-            raise serializers.ValidationError("User must be a hospital admin")
+        if value.role != 'hospital_staff':
+            raise serializers.ValidationError("User must be a hospital staff")
         return value
 
 class HospitalPreparationUpdateSerializer(serializers.ModelSerializer):

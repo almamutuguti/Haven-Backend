@@ -35,7 +35,12 @@ class EmergencyHospitalCommunication(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     # Use CharField to store the EmergencyAlert's UUID and handle the relationship manually
-    emergency_alert_id = models.CharField(editable=False, db_index=True)
+    emergency_alert_id = models.CharField(
+        max_length=36,  # UUIDs are 36 characters max
+        editable=False, 
+        db_index=True
+    )
+    
     hospital = models.ForeignKey(
         Hospital,
         on_delete=models.CASCADE,
@@ -49,7 +54,7 @@ class EmergencyHospitalCommunication(models.Model):
     )
     
     # Store the alert_id as a separate field for easy reference
-    alert_reference_id = models.CharField(max_length=20, blank=True, db_index=True)
+    alert_reference_id = models.CharField(max_length=36, blank=True, db_index=True)
     
     # Communication details
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

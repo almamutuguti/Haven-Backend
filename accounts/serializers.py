@@ -25,8 +25,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
     password_confirm = serializers.CharField(write_only=True)
-    hospital_id = serializers.UUIDField(required=False, allow_null=True)
-    organization_id = serializers.UUIDField(required=False, allow_null=True)
+    hospital_id = serializers.IntegerField(required=False, allow_null=True)
+    organization_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = CustomUser
@@ -112,8 +112,8 @@ class LoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     hospital = HospitalSerializer(read_only=True)
     organization = OrganizationSerializer(read_only=True)
-    hospital_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
-    organization_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    hospital_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    organization_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     
     class Meta:
         model = CustomUser
@@ -127,8 +127,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
-    hospital_id = serializers.UUIDField(required=False, allow_null=True)
-    organization_id = serializers.UUIDField(required=False, allow_null=True)
+    hospital_id = serializers.IntegerField(required=False, allow_null=True)
+    organization_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = CustomUser
