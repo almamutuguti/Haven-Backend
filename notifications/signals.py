@@ -63,13 +63,13 @@ def notify_hospital_and_first_aider(sender, instance, created, **kwargs):
     
     if created:
         # Notify hospital staff
-        hospital_admins = User.objects.filter(
-            role='hospital_admin',
+        hospital_staff = User.objects.filter(
+            role='hospital_staff',
             hospital=instance.hospital,
             is_active=True
         )
         
-        for admin in hospital_admins:
+        for admin in hospital_staff:
             context = {
                 'admin_name': admin.get_full_name(),
                 'alert_id': instance.alert_reference_id,

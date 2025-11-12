@@ -36,6 +36,19 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [permissions.IsAuthenticated]
     queryset = EmergencyHospitalCommunication.objects.all()
+
+    def get_permissions(self):
+        """
+        Override get_permissions to apply different permissions for different actions
+        """
+        if self.action in ['create', 'add_assessment', 'first_aider_active']:
+            permission_classes = [permissions.IsAuthenticated & IsFirstAider]
+        elif self.action in ['acknowledge', 'update_preparation', 'hospital_pending']:
+            permission_classes = [permissions.IsAuthenticated & (IsHospitalStaff | IsFirstAider)]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        
+        return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -50,11 +63,22 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Filter based on user type (using role instead of role)
+        # Debug information
+        print(f"DEBUG - User: {user.username}, Role: {user.role}")
+        print(f"DEBUG - User hospital: {getattr(user, 'hospital', None)}")
+        
+        # Filter based on user type
         if user.role == 'first_aider':
             queryset = queryset.filter(first_aider=user)
-        elif user.role == 'hospital_admin':
-            queryset = queryset.filter(hospital__admins=user)
+        elif user.role == 'hospital_staff':
+            # FIX: Use the user's hospital directly instead of hospital__admins
+            if hasattr(user, 'hospital') and user.hospital:
+                queryset = queryset.filter(hospital=user.hospital)
+                print(f"DEBUG - Filtering for hospital: {user.hospital.name}")
+            else:
+                # If hospital staff has no hospital assigned, return empty queryset
+                print("DEBUG - Hospital staff has no hospital assigned")
+                return EmergencyHospitalCommunication.objects.none()
         
         # Additional filters
         status_filter = self.request.query_params.get('status')
@@ -64,6 +88,13 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         priority_filter = self.request.query_params.get('priority')
         if priority_filter:
             queryset = queryset.filter(priority=priority_filter)
+            
+        # Hospital ID filter from query params (for frontend filtering)
+        hospital_id = self.request.query_params.get('hospital')
+        if hospital_id and user.role == 'hospital_staff':
+            # Only allow filtering by hospital if it matches the user's hospital
+            if hasattr(user, 'hospital') and user.hospital and str(user.hospital.id) == hospital_id:
+                queryset = queryset.filter(hospital_id=hospital_id)
         
         return queryset.select_related('hospital', 'first_aider')
     
@@ -75,19 +106,32 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         communication_service = HospitalCommunicationService(communication)
         communication_service.send_emergency_alert()
     
-    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
+    @action(detail=True, methods=['post'])
     def acknowledge(self, request, pk=None):
         """
         Hospital acknowledges receipt of emergency alert
         """
         communication = self.get_object()
+        
+        # Check if user has permission to acknowledge for this hospital
+        if request.user.role == 'hospital_staff' and hasattr(request.user, 'hospital'):
+            if communication.hospital != request.user.hospital:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only acknowledge communications for your hospital'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = HospitalAcknowledgmentSerializer(data=request.data)
         
         if serializer.is_valid():
+            # Use current user as acknowledged_by if not provided
+            acknowledged_by = serializer.validated_data.get('acknowledged_by', request.user)
+            preparation_notes = serializer.validated_data.get('preparation_notes', '')
+            
             response_service = HospitalResponseService(communication)
             success = response_service.acknowledge_emergency(
-                acknowledged_by=serializer.validated_data['acknowledged_by'],
-                preparation_notes=serializer.validated_data.get('preparation_notes', '')
+                acknowledged_by=acknowledged_by,
+                preparation_notes=preparation_notes
             )
             
             if success:
@@ -104,20 +148,55 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
+    @action(detail=True, methods=['post'])
     def update_preparation(self, request, pk=None):
         """
-        Update hospital preparation status
+        Update preparation status - accessible to both first aiders and hospital staff
         """
         communication = self.get_object()
+        user = request.user
+        
+        # Determine allowed fields based on user role
+        allowed_fields = []
+        
+        if user.role == 'first_aider':
+            allowed_fields = ['first_aid_provided', 'vital_signs', 'estimated_arrival_minutes']
+            if communication.first_aider != user:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only update preparations for your own communications'
+                }, status=status.HTTP_403_FORBIDDEN)
+                
+        elif user.role == 'hospital_staff':
+            allowed_fields = [
+                'doctors_ready', 'nurses_ready', 'equipment_ready', 
+                'bed_ready', 'blood_available', 'hospital_preparation_notes'
+            ]
+            if hasattr(user, 'hospital') and communication.hospital != user.hospital:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only update preparations for your hospital'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Filter data to only allowed fields
+        filtered_data = {key: value for key, value in request.data.items() if key in allowed_fields}
+        
+        if not filtered_data:
+            return Response({
+                'status': 'error',
+                'message': f'No valid fields to update for your role ({user.role})'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = HospitalPreparationUpdateSerializer(
             communication, 
-            data=request.data, 
-            partial=True
+            data=filtered_data, 
+            partial=True,
+            context={'user_role': user.role}
         )
         
         if serializer.is_valid():
             response_service = HospitalResponseService(communication)
+            # FIX: Remove the extra parameters
             success = response_service.update_preparation_status(
                 serializer.validated_data
             )
@@ -126,7 +205,9 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
                 return Response({
                     'status': 'success',
                     'message': 'Preparation status updated successfully',
-                    'communication_status': communication.status
+                    'communication_status': communication.status,
+                    'updated_by': user.role,
+                    'updated_fields': list(filtered_data.keys())
                 }, status=status.HTTP_200_OK)
             else:
                 return Response({
@@ -136,12 +217,19 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsFirstAider, IsSystemAdmin])
+    @action(detail=True, methods=['post'])
     def add_assessment(self, request, pk=None):
         """
         Add detailed first aider assessment
         """
         communication = self.get_object()
+        
+        # Check if first aider owns this communication
+        if request.user.role == 'first_aider' and communication.first_aider != request.user:
+            return Response({
+                'status': 'error',
+                'message': 'You can only add assessments to your own communications'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         # Check if assessment already exists
         if hasattr(communication, 'first_aider_assessment'):
@@ -173,6 +261,21 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         Update communication status (generic status update)
         """
         communication = self.get_object()
+        
+        # Check permissions based on user role
+        if request.user.role == 'first_aider' and communication.first_aider != request.user:
+            return Response({
+                'status': 'error',
+                'message': 'You can only update status of your own communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        if request.user.role == 'hospital_staff' and hasattr(request.user, 'hospital'):
+            if communication.hospital != request.user.hospital:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only update status of communications for your hospital'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = CommunicationStatusUpdateSerializer(data=request.data)
         
         if serializer.is_valid():
@@ -214,15 +317,36 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         Get communication logs for a specific emergency communication
         """
         communication = self.get_object()
+        
+        # Check permissions
+        if request.user.role == 'first_aider' and communication.first_aider != request.user:
+            return Response({
+                'status': 'error',
+                'message': 'You can only view logs for your own communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        if request.user.role == 'hospital_staff' and hasattr(request.user, 'hospital'):
+            if communication.hospital != request.user.hospital:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only view logs for communications for your hospital'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
         logs = communication.logs.all()
         serializer = CommunicationLogSerializer(logs, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsHospitalStaff, IsSystemAdmin])
+    @action(detail=False, methods=['get'])
     def hospital_pending(self, request):
         """
         Get pending communications for hospital
         """
+        if request.user.role != 'hospital_staff' or not hasattr(request.user, 'hospital'):
+            return Response({
+                'status': 'error',
+                'message': 'Only hospital staff can access pending communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         pending_comms = self.get_queryset().filter(
             status__in=['sent', 'acknowledged']
         ).order_by('-priority', 'created_at')
@@ -235,11 +359,17 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(pending_comms, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsFirstAider, IsSystemAdmin])
+    @action(detail=False, methods=['get'])
     def first_aider_active(self, request):
         """
         Get active communications for first aider
         """
+        if request.user.role != 'first_aider':
+            return Response({
+                'status': 'error',
+                'message': 'Only first aiders can access active communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         active_comms = self.get_queryset().filter(
             status__in=['sent', 'acknowledged', 'preparing', 'ready', 'en_route']
         ).order_by('-created_at')
@@ -280,7 +410,7 @@ class CommunicationLogViewSet(viewsets.ReadOnlyModelViewSet):
         # Use role instead of role
         if user.role == 'first_aider':
             queryset = queryset.filter(communication__first_aider=user)
-        elif user.role == 'hospital_admin':
+        elif user.role == 'hospital_staff':
             queryset = queryset.filter(communication__hospital__admins=user)
         
         return queryset.select_related('communication')
@@ -370,21 +500,56 @@ class AcknowledgeCommunicationAPIView(APIView):
 
 class UpdatePreparationAPIView(APIView):
     """
-    Update hospital preparation status
-    POST /api/hospital-comms/communications/{pk}/update-preparation/
+    Update preparation status - accessible to both first aiders and hospital staff
+    POST /api/hospital-comms/api/communications/{pk}/update-preparation/
     """
-    permission_classes = [permissions.IsAuthenticated & IsHospitalStaff, IsSystemAdmin]
+    permission_classes = [permissions.IsAuthenticated & (IsFirstAider | IsHospitalStaff)]
     
     def post(self, request, pk):
         communication = get_object_or_404(EmergencyHospitalCommunication, pk=pk)
+        user = request.user
+        
+        # Determine allowed fields based on user role
+        allowed_fields = []
+        
+        if user.role == 'first_aider':
+            allowed_fields = ['first_aid_provided', 'vital_signs', 'estimated_arrival_minutes']
+            if communication.first_aider != user:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only update preparations for your own communications'
+                }, status=status.HTTP_403_FORBIDDEN)
+                
+        elif user.role == 'hospital_staff':
+            allowed_fields = [
+                'doctors_ready', 'nurses_ready', 'equipment_ready', 
+                'bed_ready', 'blood_available', 'hospital_preparation_notes'
+            ]
+            if hasattr(user, 'hospital') and communication.hospital != user.hospital:
+                return Response({
+                    'status': 'error',
+                    'message': 'You can only update preparations for your hospital'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Filter data to only allowed fields
+        filtered_data = {key: value for key, value in request.data.items() if key in allowed_fields}
+        
+        if not filtered_data:
+            return Response({
+                'status': 'error',
+                'message': f'No valid fields to update for your role ({user.role})'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = HospitalPreparationUpdateSerializer(
             communication, 
-            data=request.data, 
-            partial=True
+            data=filtered_data, 
+            partial=True,
+            context={'user_role': user.role}
         )
         
         if serializer.is_valid():
             response_service = HospitalResponseService(communication)
+            # FIX: Remove the extra parameters that the method doesn't accept
             success = response_service.update_preparation_status(
                 serializer.validated_data
             )
@@ -393,7 +558,9 @@ class UpdatePreparationAPIView(APIView):
                 return Response({
                     'status': 'success',
                     'message': 'Preparation status updated successfully',
-                    'communication_status': communication.status
+                    'communication_status': communication.status,
+                    'updated_by': user.role,
+                    'updated_fields': list(filtered_data.keys())
                 }, status=status.HTTP_200_OK)
             else:
                 return Response({
@@ -402,8 +569,7 @@ class UpdatePreparationAPIView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
+    
 class AddAssessmentAPIView(APIView):
     """
     Add detailed first aider assessment

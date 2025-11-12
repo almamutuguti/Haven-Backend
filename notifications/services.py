@@ -611,11 +611,26 @@ class NotificationOrchestrator:
     
     def __init__(self):
         self.services = {
-            'sms': SMSService(),
-            'push': PushNotificationService(),
             'email': EmailService(),
-            'voice': VoiceCallService(),
         }
+        
+        # Only add SMS service if credentials are available
+        try:
+            self.services['sms'] = SMSService()
+        except Exception as e:
+            logger.warning(f"SMS service skipped: {str(e)}")
+        
+        # Only add voice service if credentials are available  
+        try:
+            self.services['voice'] = VoiceCallService()
+        except Exception as e:
+            logger.warning(f"Voice service skipped: {str(e)}")
+        
+        # Push service (usually doesn't fail on init)
+        try:
+            self.services['push'] = PushNotificationService()
+        except Exception as e:
+            logger.warning(f"Push service skipped: {str(e)}")
     
     def send_notification(self, notification: Notification) -> bool:
         """Send notification through specified channel"""
@@ -641,7 +656,6 @@ class NotificationOrchestrator:
                 results['failed'] += 1
         
         return results
-    
 
 class NotificationTemplateService:
     """

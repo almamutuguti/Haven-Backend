@@ -163,15 +163,46 @@ class HospitalAcknowledgmentSerializer(serializers.Serializer):
         return value
 
 class HospitalPreparationUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating hospital preparation status"""
+    """Serializer for updating preparation status - different fields for different roles"""
     
     class Meta:
         model = EmergencyHospitalCommunication
         fields = [
+            # Hospital staff fields
             'doctors_ready', 'nurses_ready', 'equipment_ready', 'bed_ready',
-            'blood_available', 'hospital_preparation_notes'
+            'blood_available', 'hospital_preparation_notes',
+            # First aider fields
+            'first_aid_provided', 'vital_signs', 'estimated_arrival_minutes'
         ]
-
+    
+    def validate(self, data):
+        """
+        Validate based on user role
+        """
+        user_role = self.context.get('user_role')
+        
+        if user_role == 'first_aider':
+            # First aider cannot update hospital preparation fields
+            hospital_fields = ['doctors_ready', 'nurses_ready', 'equipment_ready', 
+                              'bed_ready', 'blood_available', 'hospital_preparation_notes']
+            for field in hospital_fields:
+                if field in data:
+                    raise serializers.ValidationError(
+                        f"First aiders cannot update hospital preparation field: {field}"
+                    )
+        
+        elif user_role == 'hospital_staff':
+            # Hospital staff cannot update first aider fields
+            first_aider_fields = ['first_aid_provided', 'vital_signs', 'estimated_arrival_minutes']
+            for field in first_aider_fields:
+                if field in data:
+                    raise serializers.ValidationError(
+                        f"Hospital staff cannot update first aider field: {field}"
+                    )
+        
+        return data
+    
+    
 class CommunicationStatusUpdateSerializer(serializers.Serializer):
     """Serializer for updating communication status"""
     status = serializers.ChoiceField(

@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                 ('patient_arrived_at', models.DateTimeField(blank=True, null=True)),
                 ('first_aider', models.ForeignKey(limit_choices_to={'role': 'first_aider'}, on_delete=django.db.models.deletion.CASCADE, related_name='sent_communications', to=settings.AUTH_USER_MODEL)),
                 ('hospital', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='emergency_communications', to='hospitals.hospital')),
-                ('hospital_acknowledged_by', models.ForeignKey(blank=True, limit_choices_to={'role': 'hospital_admin'}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='acknowledged_communications', to=settings.AUTH_USER_MODEL)),
+                ('hospital_acknowledged_by', models.ForeignKey(blank=True, limit_choices_to={'role': 'hospital_staff'}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='acknowledged_communications', to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'db_table': 'emergency_hospital_communications',

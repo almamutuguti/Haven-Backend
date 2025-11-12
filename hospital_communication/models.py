@@ -92,7 +92,7 @@ class EmergencyHospitalCommunication(models.Model):
         null=True,
         blank=True,
         related_name='acknowledged_communications',
-        limit_choices_to={'role': 'hospital_admin'}
+        limit_choices_to={'role': 'hospital_staff'}
     )
     
     # Preparation status from hospital

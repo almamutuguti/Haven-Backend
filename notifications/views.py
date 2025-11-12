@@ -605,7 +605,7 @@ class EmailNotificationAPIView(APIView):
     API for sending email notifications
     POST /api/notifications/send-email/
     """
-    permission_classes = [permissions.IsAuthenticated]
+    
 
     def post(self, request):
         serializer = DirectNotificationSerializer(data=request.data)

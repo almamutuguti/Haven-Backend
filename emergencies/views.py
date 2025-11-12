@@ -65,8 +65,9 @@ class TriggerEmergencyAlertAPIView(APIView):
 
 class AlertStatusAPIView(APIView):
     """
-    Get emergency alert status
+    Get and update emergency alert status
     GET emergency/{alert_id}/status/
+    POST emergency/{alert_id}/status/
     """
     permission_classes = [permissions.IsAuthenticated]
     
@@ -78,6 +79,53 @@ class AlertStatusAPIView(APIView):
             
         except Exception as e:
             logger.error(f"Failed to get alert status: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+    def post(self, request, alert_id):
+        """
+        Update emergency alert status
+        POST emergency/{alert_id}/status/
+        """
+        try:
+            # Get the alert
+            alert = get_object_or_404(EmergencyAlert, alert_id=alert_id)
+            
+            # Validate the request data
+            serializer = AlertStatusSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            data = serializer.validated_data
+            
+            # Update the alert status directly
+            alert.status = data['status']
+            
+            # Add details/notes if provided
+            if 'details' in data:
+                # You might want to save this in a separate field or model
+                alert.notes = data['details']
+            
+            alert.save()
+            
+            # Log the status update
+            logger.info(f"Alert {alert_id} status updated to {data['status']} by user {request.user.id}")
+            
+            return Response({
+                'message': 'Alert status updated successfully',
+                'alert_id': alert_id,
+                'status': alert.status
+            })
+            
+        except EmergencyAlert.DoesNotExist:
+            return Response(
+                {'error': 'Alert not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Alert status update failed: {str(e)}")
             return Response(
                 {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
