@@ -4,7 +4,8 @@ from .models import (
     EmergencyHospitalCommunication, 
     CommunicationLog, 
     HospitalPreparationChecklist,
-    FirstAiderAssessment
+    FirstAiderAssessment,
+    PatientAssessment
 )
 from emergencies.models import EmergencyAlert
 from hospitals.models import Hospital
@@ -122,19 +123,58 @@ class EmergencyHospitalCommunicationListSerializer(serializers.ModelSerializer):
             'created_at', 'sent_to_hospital_at', 'hospital_ready_at'
         ]
 
+
+class PatientAssessmentSerializer(serializers.ModelSerializer):
+    full_name = serializers.ReadOnlyField()
+    blood_pressure = serializers.ReadOnlyField()
+    priority_level = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = PatientAssessment
+        fields = '__all__'
+        read_only_fields = ('communication', 'created_at', 'updated_at', 'gcs_total')
+    
+    def validate_gcs_eyes(self, value):
+        if value and (value < 1 or value > 4):
+            raise serializers.ValidationError("GCS Eyes must be between 1 and 4")
+        return value
+    
+    def validate_gcs_verbal(self, value):
+        if value and (value < 1 or value > 5):
+            raise serializers.ValidationError("GCS Verbal must be between 1 and 5")
+        return value
+    
+    def validate_gcs_motor(self, value):
+        if value and (value < 1 or value > 6):
+            raise serializers.ValidationError("GCS Motor must be between 1 and 6")
+        return value
+    
+    def validate_oxygen_saturation(self, value):
+        if value and (value < 0 or value > 100):
+            raise serializers.ValidationError("Oxygen saturation must be between 0 and 100")
+        return value
+    
+    def validate_heart_rate(self, value):
+        if value and (value < 30 or value > 250):
+            raise serializers.ValidationError("Heart rate must be between 30 and 250 BPM")
+        return value
+    
+    def validate_temperature(self, value):
+        if value and (value < 30 or value > 45):
+            raise serializers.ValidationError("Temperature must be between 30 and 45°C")
+        return value
+
 class EmergencyHospitalCommunicationDetailSerializer(serializers.ModelSerializer):
-    """Detailed serializer with nested relationships"""
+    """Enhanced detailed serializer with patient assessment"""
     hospital_name = serializers.CharField(source='hospital.name', read_only=True)
     hospital_address = serializers.CharField(source='hospital.address', read_only=True)
     hospital_phone = serializers.CharField(source='hospital.phone', read_only=True)
     first_aider_name = serializers.CharField(source='first_aider.get_full_name', read_only=True)
     first_aider_phone = serializers.CharField(source='first_aider.phone', read_only=True)
     
-    # Nested serializers
-    assessment = FirstAiderAssessmentSerializer(
-        source='first_aider_assessment', 
-        read_only=True
-    )
+    # Nested serializers - UPDATED to include patient assessment
+    first_aider_assessment = FirstAiderAssessmentSerializer(read_only=True)
+    patient_assessment = PatientAssessmentSerializer(read_only=True)  # NEW
     checklist = HospitalPreparationChecklistSerializer(
         source='preparation_checklist',
         read_only=True
@@ -147,6 +187,7 @@ class EmergencyHospitalCommunicationDetailSerializer(serializers.ModelSerializer
     class Meta:
         model = EmergencyHospitalCommunication
         fields = '__all__'
+
 
 class HospitalAcknowledgmentSerializer(serializers.Serializer):
     """Serializer for hospital acknowledgment"""
@@ -227,3 +268,31 @@ class FirstAiderAssessmentCreateSerializer(serializers.ModelSerializer):
                 "All GCS components (eyes, verbal, motor) must be provided together"
             )
         return data
+    
+class PatientAssessmentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PatientAssessment
+        exclude = ('communication', 'created_at', 'updated_at', 'gcs_total')
+    
+    def validate(self, data):
+        # Validate GCS components if provided
+        gcs_fields = ['gcs_eyes', 'gcs_verbal', 'gcs_motor']
+        provided_gcs = [data.get(field) for field in gcs_fields if data.get(field) is not None]
+        
+        if len(provided_gcs) > 0 and len(provided_gcs) < 3:
+            raise serializers.ValidationError(
+                "All GCS components (eyes, verbal, motor) must be provided together"
+            )
+        
+        # Validate blood pressure components
+        bp_systolic = data.get('blood_pressure_systolic')
+        bp_diastolic = data.get('blood_pressure_diastolic')
+        
+        if (bp_systolic and not bp_diastolic) or (bp_diastolic and not bp_systolic):
+            raise serializers.ValidationError(
+                "Both systolic and diastolic blood pressure must be provided together"
+            )
+        
+        return data
+
+

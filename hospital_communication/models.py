@@ -394,7 +394,7 @@ class FirstAiderAssessment(models.Model):
             self.gcs_total = self.gcs_eyes + self.gcs_verbal + self.gcs_motor
         super().save(*args, **kwargs)
 
-# Add to your existing hospital_comms/models.py
+
 
 class PatientAssessment(models.Model):
     """
