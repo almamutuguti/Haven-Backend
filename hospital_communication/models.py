@@ -393,3 +393,214 @@ class FirstAiderAssessment(models.Model):
         if self.gcs_eyes and self.gcs_verbal and self.gcs_motor:
             self.gcs_total = self.gcs_eyes + self.gcs_verbal + self.gcs_motor
         super().save(*args, **kwargs)
+
+# Add to your existing hospital_comms/models.py
+
+class PatientAssessment(models.Model):
+    """
+    Comprehensive patient assessment by first aider - integrated with hospital communications
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Link to communication
+    communication = models.OneToOneField(
+        EmergencyHospitalCommunication,
+        on_delete=models.CASCADE,
+        related_name='patient_assessment'
+    )
+    
+    # Personal Information
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=10,
+        choices=[
+            ('male', 'Male'),
+            ('female', 'Female'),
+            ('other', 'Other'),
+            ('unknown', 'Unknown')
+        ],
+        default='unknown'
+    )
+    contact_number = models.CharField(max_length=20, blank=True)
+    
+    # Vital Signs
+    heart_rate = models.PositiveIntegerField(null=True, blank=True, help_text="BPM")
+    blood_pressure_systolic = models.PositiveIntegerField(null=True, blank=True)
+    blood_pressure_diastolic = models.PositiveIntegerField(null=True, blank=True)
+    temperature = models.DecimalField(
+        max_digits=4, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Temperature in Celsius"
+    )
+    respiratory_rate = models.PositiveIntegerField(null=True, blank=True, help_text="Breaths per minute")
+    oxygen_saturation = models.PositiveIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        null=True,
+        blank=True,
+        help_text="SpO2 percentage"
+    )
+    blood_glucose = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Blood glucose level"
+    )
+    
+    # Glasgow Coma Scale
+    gcs_eyes = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        null=True,
+        blank=True
+    )
+    gcs_verbal = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        null=True,
+        blank=True
+    )
+    gcs_motor = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(6)],
+        null=True,
+        blank=True
+    )
+    gcs_total = models.IntegerField(
+        validators=[MinValueValidator(3), MaxValueValidator(15)],
+        null=True,
+        blank=True
+    )
+    
+    # Symptoms and Injuries
+    symptoms = models.JSONField(default=list, help_text="List of reported symptoms")
+    injuries = models.JSONField(default=list, help_text="List of observed injuries")
+    injury_mechanism = models.TextField(blank=True, help_text="How the injury occurred")
+    
+    # Pain Assessment
+    pain_level = models.CharField(
+        max_length=10,
+        choices=[
+            ('0', '0 - No Pain'),
+            ('1-3', '1-3 - Mild'),
+            ('4-6', '4-6 - Moderate'),
+            ('7-10', '7-10 - Severe')
+        ],
+        blank=True
+    )
+    pain_location = models.TextField(blank=True, help_text="Location of pain")
+    
+    # Medical History
+    medications = models.TextField(blank=True, help_text="Current medications")
+    allergies = models.TextField(blank=True, help_text="Known allergies")
+    medical_history = models.TextField(blank=True, help_text="Past medical history")
+    last_meal = models.TextField(blank=True, help_text="When patient last ate/drank")
+    
+    # Clinical Assessment
+    condition = models.CharField(
+        max_length=20,
+        choices=[
+            ('critical', 'Critical'),
+            ('serious', 'Serious'),
+            ('stable', 'Stable'),
+            ('guarded', 'Guarded')
+        ],
+        default='stable'
+    )
+    consciousness = models.CharField(
+        max_length=20,
+        choices=[
+            ('alert', 'Alert'),
+            ('verbal', 'Responds to Verbal'),
+            ('pain', 'Responds to Pain'),
+            ('unresponsive', 'Unresponsive')
+        ],
+        default='alert'
+    )
+    breathing = models.CharField(
+        max_length=20,
+        choices=[
+            ('normal', 'Normal'),
+            ('labored', 'Labored'),
+            ('shallow', 'Shallow'),
+            ('absent', 'Absent')
+        ],
+        default='normal'
+    )
+    circulation = models.CharField(
+        max_length=20,
+        choices=[
+            ('normal', 'Normal'),
+            ('weak', 'Weak Pulse'),
+            ('absent', 'Absent Pulse'),
+            ('irregular', 'Irregular')
+        ],
+        default='normal'
+    )
+    triage_category = models.CharField(
+        max_length=20,
+        choices=[
+            ('immediate', 'Immediate (Red)'),
+            ('delayed', 'Delayed (Yellow)'),
+            ('minor', 'Minor (Green)'),
+            ('expectant', 'Expectant (Black)'),
+        ],
+        default='immediate'
+    )
+    
+    # Treatment Provided
+    treatment_provided = models.TextField(blank=True, help_text="First aid treatments provided")
+    medications_administered = models.TextField(blank=True, help_text="Medications given by first aider")
+    
+    # Notes and Recommendations
+    assessment_notes = models.TextField(blank=True, help_text="Additional assessment notes")
+    recommendations = models.TextField(blank=True, help_text="Recommendations for hospital care")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'patient_assessments'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Assessment: {self.first_name} {self.last_name} - {self.communication.alert_reference_id}"
+    
+    def save(self, *args, **kwargs):
+        # Calculate GCS total if components are provided
+        if self.gcs_eyes and self.gcs_verbal and self.gcs_motor:
+            self.gcs_total = self.gcs_eyes + self.gcs_verbal + self.gcs_motor
+        
+        # Update communication with assessment data
+        if self.communication and not self.communication.victim_name:
+            self.communication.victim_name = f"{self.first_name} {self.last_name}"
+            if self.age:
+                self.communication.victim_age = self.age
+            if self.gender != 'unknown':
+                self.communication.victim_gender = self.gender
+            self.communication.save()
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def blood_pressure(self):
+        if self.blood_pressure_systolic and self.blood_pressure_diastolic:
+            return f"{self.blood_pressure_systolic}/{self.blood_pressure_diastolic}"
+        return "Not recorded"
+    
+    @property
+    def priority_level(self):
+        """Map condition to priority for hospital"""
+        priority_map = {
+            'critical': 'critical',
+            'serious': 'high', 
+            'guarded': 'medium',
+            'stable': 'low'
+        }
+        return priority_map.get(self.condition, 'medium')
