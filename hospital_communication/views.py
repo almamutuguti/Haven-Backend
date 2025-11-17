@@ -10,7 +10,8 @@ from .models import (
     EmergencyHospitalCommunication, 
     CommunicationLog,
     HospitalPreparationChecklist,
-    FirstAiderAssessment
+    FirstAiderAssessment,
+    PatientAssessment
 )
 from .serializers import (
     EmergencyHospitalCommunicationCreateSerializer,
@@ -21,7 +22,9 @@ from .serializers import (
     CommunicationStatusUpdateSerializer,
     FirstAiderAssessmentCreateSerializer,
     FirstAiderAssessmentSerializer,
-    CommunicationLogSerializer
+    CommunicationLogSerializer,
+    PatientAssessmentCreateSerializer,
+    PatientAssessmentSerializer
 )
 from .services import HospitalCommunicationService, HospitalResponseService
 # Update permissions import to use correct path
@@ -393,6 +396,134 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
             'expectant': 'low'
         }
         return mapping.get(triage_category, 'high')
+    
+
+    @action(detail=True, methods=['post', 'put'])
+    def add_patient_assessment(self, request, pk=None):
+        """
+        Add or update comprehensive patient assessment for a communication
+        POST/PUT /api/hospital-comms/communications/{pk}/add-patient-assessment/
+        """
+        communication = self.get_object()
+        
+        # Check permissions
+        if request.user.role == 'first_aider' and communication.first_aider != request.user:
+            return Response({
+                'status': 'error',
+                'message': 'You can only add assessments to your own communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if assessment already exists
+        assessment_exists = hasattr(communication, 'patient_assessment')
+        
+        if assessment_exists and request.method == 'POST':
+            return Response({
+                'status': 'error',
+                'message': 'Patient assessment already exists. Use PUT to update.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = PatientAssessmentCreateSerializer(
+            data=request.data,
+            instance=communication.patient_assessment if assessment_exists else None
+        )
+        
+        if serializer.is_valid():
+            if assessment_exists:
+                # Update existing assessment
+                assessment = serializer.save()
+                message = 'Patient assessment updated successfully'
+            else:
+                # Create new assessment
+                assessment = serializer.save(communication=communication)
+                message = 'Patient assessment created successfully'
+            
+            # Update communication priority based on assessment
+            if assessment.condition:
+                communication.priority = assessment.priority_level
+                communication.save()
+            
+            # Log the assessment activity
+            CommunicationLog.objects.create(
+                communication=communication,
+                channel='in_app',
+                direction='outgoing',
+                message_type='patient_assessment',
+                message_content=f"Patient assessment {'updated' if assessment_exists else 'added'}",
+                message_data={
+                    'assessment_id': str(assessment.id),
+                    'patient_name': assessment.full_name,
+                    'condition': assessment.condition,
+                    'triage': assessment.triage_category
+                },
+                is_successful=True
+            )
+            
+            return Response({
+                'status': 'success',
+                'message': message,
+                'assessment': PatientAssessmentSerializer(assessment).data,
+                'communication_priority': communication.priority
+            }, status=status.HTTP_200_OK if assessment_exists else status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def patient_assessment(self, request, pk=None):
+        """
+        Get patient assessment for a communication
+        GET /api/hospital-comms/communications/{pk}/patient-assessment/
+        """
+        communication = self.get_object()
+        
+        if not hasattr(communication, 'patient_assessment'):
+            return Response({
+                'status': 'error',
+                'message': 'No patient assessment found for this communication'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = PatientAssessmentSerializer(communication.patient_assessment)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['delete'])
+    def delete_patient_assessment(self, request, pk=None):
+        """
+        Delete patient assessment for a communication
+        DELETE /api/hospital-comms/communications/{pk}/delete-patient-assessment/
+        """
+        communication = self.get_object()
+        
+        # Check permissions
+        if request.user.role == 'first_aider' and communication.first_aider != request.user:
+            return Response({
+                'status': 'error',
+                'message': 'You can only delete assessments from your own communications'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        if not hasattr(communication, 'patient_assessment'):
+            return Response({
+                'status': 'error',
+                'message': 'No patient assessment found for this communication'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        assessment = communication.patient_assessment
+        assessment_id = assessment.id
+        assessment.delete()
+        
+        # Log the deletion
+        CommunicationLog.objects.create(
+            communication=communication,
+            channel='in_app',
+            direction='outgoing',
+            message_type='patient_assessment_deleted',
+            message_content="Patient assessment deleted",
+            message_data={'assessment_id': str(assessment_id)},
+            is_successful=True
+        )
+        
+        return Response({
+            'status': 'success',
+            'message': 'Patient assessment deleted successfully'
+        }, status=status.HTTP_200_OK)
 
 
 class CommunicationLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -673,3 +804,32 @@ class CommunicationLogsAPIView(generics.ListAPIView):
     def get_queryset(self):
         communication_id = self.kwargs['pk']
         return CommunicationLog.objects.filter(communication_id=communication_id)
+    
+class PatientAssessmentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing patient assessments
+    """
+    permission_classes = [permissions.IsAuthenticated & IsFirstAider]
+    queryset = PatientAssessment.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PatientAssessmentCreateSerializer
+        return PatientAssessmentSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == 'first_aider':
+            queryset = queryset.filter(communication__first_aider=user)
+        elif user.role == 'hospital_staff':
+            queryset = queryset.filter(communication__hospital__admins=user)
+        
+        return queryset.select_related('communication')
+    
+    def perform_create(self, serializer):
+        # Patient assessment is created through the communication endpoint
+        raise serializers.ValidationError(
+            "Use the communication assessment endpoint to create patient assessments"
+        )
