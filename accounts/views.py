@@ -17,6 +17,7 @@ except ImportError:
 
 from .serializers import (
     AdminUserUpdateSerializer,
+    ChangePasswordSerializer,
     UserRegistrationSerializer, 
     LoginSerializer,
     UserProfileSerializer,
@@ -234,3 +235,29 @@ class OrganizationListAPIView(generics.ListAPIView):
     
     def get_queryset(self):
         return Organization.objects.all().order_by('name')
+    
+
+class ChangePasswordAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data, 
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            # Create new tokens since password changed
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Password changed successfully',
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

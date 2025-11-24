@@ -524,6 +524,104 @@ class EmergencyHospitalCommunicationViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': 'Patient assessment deleted successfully'
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'])
+    def create_with_assessment(self, request):
+        """
+        Create hospital communication and assessment in one call
+        POST /api/hospital-comms/communications/create-with-assessment/
+        """
+        try:
+            # Extract communication and assessment data
+            communication_data = request.data.get('communication', {})
+            assessment_data = request.data.get('assessment', {})
+            
+            # Create communication first
+            comm_serializer = EmergencyHospitalCommunicationCreateSerializer(
+                data=communication_data,
+                context={'request': request}
+            )
+            
+            if not comm_serializer.is_valid():
+                return Response({
+                    'status': 'error',
+                    'message': 'Communication validation failed',
+                    'errors': comm_serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            communication = comm_serializer.save()
+            
+            # Create assessment if data provided
+            assessment = None
+            if assessment_data:
+                assessment_serializer = PatientAssessmentCreateSerializer(
+                    data=assessment_data
+                )
+                
+                if assessment_serializer.is_valid():
+                    assessment = assessment_serializer.save(communication=communication)
+                else:
+                    # If assessment fails, still return success but with warning
+                    print("Assessment creation failed:", assessment_serializer.errors)
+            
+            # Prepare response
+            response_data = {
+                'status': 'success',
+                'message': 'Communication created successfully',
+                'communication': EmergencyHospitalCommunicationDetailSerializer(communication).data,
+            }
+            
+            if assessment:
+                response_data['assessment'] = PatientAssessmentSerializer(assessment).data
+                response_data['message'] = 'Communication and assessment created successfully'
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'Failed to create communication: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def get_or_create_assessment(self, request, pk=None):
+        """
+        Get existing assessment or create empty one
+        GET /api/hospital-comms/communications/{pk}/get-or-create-assessment/
+        """
+        communication = self.get_object()
+        
+        # Check if assessment already exists
+        if hasattr(communication, 'patient_assessment'):
+            serializer = PatientAssessmentSerializer(communication.patient_assessment)
+            return Response({
+                'status': 'existing',
+                'assessment': serializer.data
+            })
+        
+        # Create empty assessment
+        empty_assessment_data = {
+            'first_name': communication.victim_name.split(' ')[0] if communication.victim_name else '',
+            'last_name': ' '.join(communication.victim_name.split(' ')[1:]) if communication.victim_name else '',
+            'age': communication.victim_age,
+            'gender': communication.victim_gender,
+            'communication_id': communication.id
+        }
+        
+        assessment_serializer = PatientAssessmentCreateSerializer(data=empty_assessment_data)
+        
+        if assessment_serializer.is_valid():
+            assessment = assessment_serializer.save(communication=communication)
+            return Response({
+                'status': 'created',
+                'assessment': PatientAssessmentSerializer(assessment).data
+            })
+        else:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to create assessment',
+                'errors': assessment_serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CommunicationLogViewSet(viewsets.ReadOnlyModelViewSet):

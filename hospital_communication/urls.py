@@ -8,6 +8,13 @@ router.register(
     views.EmergencyHospitalCommunicationViewSet,
     basename='emergency-communication'
 )
+
+router.register(
+    r'patient-assessments', 
+    views.PatientAssessmentViewSet,
+    basename='patient-assessment'
+)
+
 router.register(
     r'logs', 
     views.CommunicationLogViewSet,
@@ -59,5 +66,31 @@ urlpatterns += [
         'api/communications/<uuid:pk>/logs/',
         views.CommunicationLogsAPIView.as_view(),
         name='communication-logs'
+    ),
+
+    path(
+        'api/communications/<uuid:pk>/add-patient-assessment/',
+        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'add_patient_assessment', 'put': 'add_patient_assessment'}),
+        name='add-patient-assessment'
+    ),
+    path(
+        'api/communications/<uuid:pk>/patient-assessment/',
+        views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'patient_assessment'}),
+        name='get-patient-assessment'
+    ),
+    path(
+        'api/communications/<uuid:pk>/delete-patient-assessment/',
+        views.EmergencyHospitalCommunicationViewSet.as_view({'delete': 'delete_patient_assessment'}),
+        name='delete-patient-assessment'
+    ),
+        path(
+        'api/communications/create-with-assessment/',
+        views.EmergencyHospitalCommunicationViewSet.as_view({'post': 'create_with_assessment'}),
+        name='create-with-assessment'
+    ),
+        path(
+        'api/communications/<uuid:pk>/get-or-create-assessment/',
+        views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'get_or_create_assessment'}),
+        name='get-or-create-assessment'
     ),
 ]

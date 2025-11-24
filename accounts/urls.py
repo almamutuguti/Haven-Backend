@@ -7,6 +7,7 @@ urlpatterns = [
     path('api/login/', views.LoginAPIView.as_view(), name='login'),
     path('api/logout/', views.LogoutAPIView.as_view(), name='logout'),
     path('api/refresh-token/', views.RefreshTokenAPIView.as_view(), name='refresh-token'),
+    path('api/change-password/', views.ChangePasswordAPIView.as_view(), name='change-password'),  
     
     # User management endpoints
     path('api/user/profile/', views.UserProfileAPIView.as_view(), name='user-profile'),
