@@ -79,6 +79,8 @@ class Organization(models.Model):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('system_admin', 'System Admin'),
+        ('hospital_admin', 'Hospital Admin'),
+        ('organization_admin', 'Organization Admin'),
         ('first_aider', 'First Aider'),
         ('hospital_staff', 'Hospital Staff'),
     )

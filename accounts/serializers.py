@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser, Organization
+from django.contrib.auth.password_validation import validate_password
 
 # Import Hospital model with error handling
 try:
@@ -201,3 +202,106 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+
+
+# ============================================================================
+# DASHBOARD SERIALIZERS
+# ============================================================================
+
+class DashboardUserSerializer(serializers.ModelSerializer):
+    """Simplified user serializer for dashboard listings"""
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
+            'phone', 'role', 'is_active', 'date_joined', 'badge_number'
+        ]
+    
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}".strip()
+
+
+class OrganizationDashboardSerializer(serializers.ModelSerializer):
+    """Organization serializer with additional dashboard statistics"""
+    first_aider_count = serializers.SerializerMethodField()
+    active_first_aider_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Organization
+        fields = [
+            'id', 'name', 'organization_type', 'description',
+            'contact_person', 'phone', 'email', 'website', 'address',
+            'is_active', 'is_verified', 'created_at', 'updated_at',
+            'first_aider_count', 'active_first_aider_count'
+        ]
+    
+    def get_first_aider_count(self, obj):
+        return obj.first_aiders.count()
+    
+    def get_active_first_aider_count(self, obj):
+        return obj.first_aiders.filter(is_active=True).count()
+
+
+class HospitalDashboardSerializer(serializers.ModelSerializer):
+    """Hospital serializer with additional dashboard statistics"""
+    staff_count = serializers.SerializerMethodField()
+    active_staff_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Hospital
+        fields = [
+            'id', 'name', 'hospital_type', 'level', 'phone', 'email',
+            'address', 'is_operational', 'staff_count', 'active_staff_count'
+        ]
+    
+    def get_staff_count(self, obj):
+        return obj.staff.count()
+    
+    def get_active_staff_count(self, obj):
+        return obj.staff.filter(is_active=True).count()
+
+
+class SystemOverviewSerializer(serializers.Serializer):
+    """Serializer for system admin overview data"""
+    total_users = serializers.IntegerField()
+    active_users = serializers.IntegerField()
+    recent_users = serializers.IntegerField()
+    users_by_role = serializers.ListField()
+    total_organizations = serializers.IntegerField()
+    verified_organizations = serializers.IntegerField()
+    active_organizations = serializers.IntegerField()
+    total_hospitals = serializers.IntegerField(required=False, allow_null=True)
+    operational_hospitals = serializers.IntegerField(required=False, allow_null=True)
+
+
+class HospitalOverviewSerializer(serializers.Serializer):
+    """Serializer for hospital admin overview data"""
+    hospital_name = serializers.CharField()
+    hospital_type = serializers.CharField()
+    hospital_level = serializers.CharField()
+    total_staff = serializers.IntegerField()
+    active_staff = serializers.IntegerField()
+    associated_first_aiders = serializers.IntegerField()
+    recent_staff_additions = serializers.IntegerField()
+    is_operational = serializers.BooleanField()
+
+
+class OrganizationOverviewSerializer(serializers.Serializer):
+    """Serializer for organization admin overview data"""
+    organization_name = serializers.CharField()
+    organization_type = serializers.CharField()
+    total_first_aiders = serializers.IntegerField()
+    active_first_aiders = serializers.IntegerField()
+    certified_first_aiders = serializers.IntegerField()
+    recent_first_aider_additions = serializers.IntegerField()
+    is_verified = serializers.BooleanField()
+    is_active = serializers.BooleanField()
+
+
+class CertificationSummarySerializer(serializers.Serializer):
+    """Serializer for certification summary data"""
+    total_certified = serializers.IntegerField()
+    pending_renewals = serializers.IntegerField()
+    expired_certifications = serializers.IntegerField()

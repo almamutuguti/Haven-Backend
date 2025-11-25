@@ -2,9 +2,14 @@ from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.utils import timezone
+from datetime import timedelta
 
-from .permissions import IsSystemAdmin
+from .permissions import (
+    IsSystemAdmin, IsHospitalAdmin, IsOrganizationAdmin,
+    CanAccessHospitalDashboard, CanAccessOrganizationDashboard
+)
 from .models import CustomUser, Organization
 
 # Import Hospital model with error handling
@@ -25,6 +30,10 @@ from .serializers import (
     OrganizationSerializer
 )
 
+
+# ============================================================================
+# AUTHENTICATION VIEWS
+# ============================================================================
 
 class RegisterAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
@@ -129,6 +138,36 @@ class LogoutAPIView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ChangePasswordAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data, 
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            # Create new tokens since password changed
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Password changed successfully',
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ============================================================================
+# USER MANAGEMENT VIEWS (SYSTEM ADMIN ONLY)
+# ============================================================================
+
 class UserListAPIView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
@@ -219,6 +258,10 @@ class AdminUserDeleteAPIView(generics.DestroyAPIView):
         }, status=status.HTTP_200_OK)
 
 
+# ============================================================================
+# HOSPITAL & ORGANIZATION VIEWS
+# ============================================================================
+
 class HospitalListAPIView(generics.ListAPIView):
     serializer_class = HospitalSerializer
     permission_classes = [permissions.AllowAny]
@@ -235,29 +278,333 @@ class OrganizationListAPIView(generics.ListAPIView):
     
     def get_queryset(self):
         return Organization.objects.all().order_by('name')
-    
 
-class ChangePasswordAPIView(APIView):
+
+# ============================================================================
+# SYSTEM ADMIN DASHBOARD VIEWS
+# ============================================================================
+
+class SystemAdminOverviewAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        """Get system-wide overview statistics"""
+        # User statistics
+        total_users = CustomUser.objects.count()
+        active_users = CustomUser.objects.filter(is_active=True).count()
+        users_by_role = CustomUser.objects.values('role').annotate(count=Count('id'))
+        
+        # Organization statistics
+        total_organizations = Organization.objects.count()
+        verified_organizations = Organization.objects.filter(is_verified=True).count()
+        active_organizations = Organization.objects.filter(is_active=True).count()
+        
+        # Hospital statistics (if hospitals app is available)
+        hospital_stats = {}
+        if HAS_HOSPITALS:
+            total_hospitals = Hospital.objects.count()
+            operational_hospitals = Hospital.objects.filter(is_operational=True).count()
+            hospital_stats = {
+                'total_hospitals': total_hospitals,
+                'operational_hospitals': operational_hospitals
+            }
+        
+        # Recent activity (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_users = CustomUser.objects.filter(date_joined__gte=week_ago).count()
+        
+        return Response({
+            'system_overview': {
+                'total_users': total_users,
+                'active_users': active_users,
+                'recent_users': recent_users,
+                'users_by_role': list(users_by_role),
+                'total_organizations': total_organizations,
+                'verified_organizations': verified_organizations,
+                'active_organizations': active_organizations,
+                **hospital_stats
+            }
+        })
+
+
+class SystemAdminUsersAPIView(generics.ListAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get_queryset(self):
+        queryset = CustomUser.objects.all().order_by('-date_joined')
+        
+        # Filter by role if provided
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role=role)
+            
+        # Filter by active status if provided
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+            
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        
+        # Add summary statistics
+        total_count = self.get_queryset().count()
+        active_count = self.get_queryset().filter(is_active=True).count()
+        
+        response.data = {
+            'summary': {
+                'total_users': total_count,
+                'active_users': active_count
+            },
+            'users': response.data
+        }
+        
+        return response
+
+
+# ============================================================================
+# HOSPITAL ADMIN DASHBOARD VIEWS
+# ============================================================================
+
+class HospitalAdminOverviewAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsHospitalAdmin]
+    
+    def get(self, request):
+        """Get hospital-specific overview statistics"""
+        user = request.user
+        
+        if not user.hospital:
+            return Response({
+                'error': 'User is not associated with any hospital'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        hospital = user.hospital
+        
+        # Staff statistics
+        total_staff = CustomUser.objects.filter(
+            hospital=hospital, 
+            role__in=['hospital_staff', 'hospital_admin']
+        ).count()
+        
+        active_staff = CustomUser.objects.filter(
+            hospital=hospital,
+            role__in=['hospital_staff', 'hospital_admin'],
+            is_active=True
+        ).count()
+        
+        # Associated first aiders (from organizations that work with this hospital)
+        associated_first_aiders = CustomUser.objects.filter(
+            role='first_aider',
+            organization__isnull=False,
+            is_active=True
+        ).count()
+        
+        # Recent activity (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_staff = CustomUser.objects.filter(
+            hospital=hospital,
+            date_joined__gte=week_ago
+        ).count()
+        
+        return Response({
+            'hospital_overview': {
+                'hospital_name': hospital.name,
+                'hospital_type': hospital.hospital_type,
+                'hospital_level': hospital.level,
+                'total_staff': total_staff,
+                'active_staff': active_staff,
+                'associated_first_aiders': associated_first_aiders,
+                'recent_staff_additions': recent_staff,
+                'is_operational': hospital.is_operational
+            }
+        })
+
+
+class HospitalStaffManagementAPIView(generics.ListAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsHospitalAdmin]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if not user.hospital:
+            return CustomUser.objects.none()
+        
+        # Return only staff from this hospital
+        return CustomUser.objects.filter(
+            hospital=user.hospital,
+            role__in=['hospital_staff', 'hospital_admin']
+        ).order_by('-date_joined')
+
+
+class HospitalAssociatedFirstAidersAPIView(generics.ListAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsHospitalAdmin]
+    
+    def get_queryset(self):
+        # Return first aiders who might be associated with this hospital
+        # This would typically be based on geographical proximity or partnerships
+        return CustomUser.objects.filter(
+            role='first_aider',
+            is_active=True
+        ).select_related('organization').order_by('first_name')
+
+
+# ============================================================================
+# ORGANIZATION ADMIN DASHBOARD VIEWS
+# ============================================================================
+
+class OrganizationAdminOverviewAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationAdmin]
+    
+    def get(self, request):
+        """Get organization-specific overview statistics"""
+        user = request.user
+        
+        if not user.organization:
+            return Response({
+                'error': 'User is not associated with any organization'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        organization = user.organization
+        
+        # First aider statistics
+        total_first_aiders = CustomUser.objects.filter(
+            organization=organization, 
+            role__in=['first_aider', 'organization_admin']
+        ).count()
+        
+        active_first_aiders = CustomUser.objects.filter(
+            organization=organization,
+            role__in=['first_aider', 'organization_admin'],
+            is_active=True
+        ).count()
+        
+        # Certification statistics (you would need a Certification model for this)
+        certified_first_aiders = CustomUser.objects.filter(
+            organization=organization,
+            role='first_aider',
+            is_active=True
+        ).count()  # This would be more sophisticated with actual certification data
+        
+        # Recent activity (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_first_aiders = CustomUser.objects.filter(
+            organization=organization,
+            date_joined__gte=week_ago
+        ).count()
+        
+        return Response({
+            'organization_overview': {
+                'organization_name': organization.name,
+                'organization_type': organization.organization_type,
+                'total_first_aiders': total_first_aiders,
+                'active_first_aiders': active_first_aiders,
+                'certified_first_aiders': certified_first_aiders,
+                'recent_first_aider_additions': recent_first_aiders,
+                'is_verified': organization.is_verified,
+                'is_active': organization.is_active
+            }
+        })
+
+
+class OrganizationFirstAidersManagementAPIView(generics.ListAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationAdmin]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if not user.organization:
+            return CustomUser.objects.none()
+        
+        # Return only first aiders from this organization
+        return CustomUser.objects.filter(
+            organization=user.organization,
+            role__in=['first_aider', 'organization_admin']
+        ).order_by('-date_joined')
+
+
+class OrganizationCertificationsAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationAdmin]
+    
+    def get(self, request):
+        """Get certification data for organization's first aiders"""
+        user = request.user
+        
+        if not user.organization:
+            return Response({
+                'error': 'User is not associated with any organization'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # This would typically query a Certification model
+        # For now, return basic first aider data
+        first_aiders = CustomUser.objects.filter(
+            organization=user.organization,
+            role='first_aider',
+            is_active=True
+        ).values('id', 'first_name', 'last_name', 'badge_number', 'registration_number')
+        
+        return Response({
+            'first_aiders': list(first_aiders),
+            'certification_summary': {
+                'total_certified': len(first_aiders),  # Placeholder
+                'pending_renewals': 0,  # Placeholder
+                'expired_certifications': 0  # Placeholder
+            }
+        })
+
+
+# ============================================================================
+# DASHBOARD REDIRECTION AND ACCESS CONTROL
+# ============================================================================
+
+class DashboardAccessAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
-    def post(self, request):
-        serializer = ChangePasswordSerializer(
-            data=request.data, 
-            context={'request': request}
-        )
+    def get(self, request):
+        """Determine which dashboard the user should access based on their role"""
+        user = request.user
         
-        if serializer.is_valid():
-            user = serializer.save()
-            
-            # Create new tokens since password changed
-            refresh = RefreshToken.for_user(user)
-            
-            return Response({
-                'message': 'Password changed successfully',
-                'tokens': {
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                }
-            }, status=status.HTTP_200_OK)
+        role_dashboard_map = {
+            'system_admin': '/dashboard/admin',
+            'hospital_admin': '/dashboard/hospital-admin',
+            'organization_admin': '/dashboard/organization-admin',
+            'hospital_staff': '/dashboard/hospital-staff',
+            'first_aider': '/dashboard/first-aider'
+        }
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        dashboard_path = role_dashboard_map.get(user.role, '/dashboard')
+        
+        return Response({
+            'dashboard_path': dashboard_path,
+            'user_role': user.role,
+            'user_data': UserProfileSerializer(user).data
+        })
+
+
+class UserRoleCheckAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        """Check if user has access to specific dashboard"""
+        dashboard_type = request.query_params.get('dashboard')
+        user = request.user
+        
+        dashboard_access = {
+            'system_admin': user.role == 'system_admin',
+            'hospital_admin': user.role in ['hospital_admin', 'hospital_staff'],
+            'organization_admin': user.role in ['organization_admin', 'first_aider'],
+            'hospital_staff': user.role == 'hospital_staff',
+            'first_aider': user.role == 'first_aider'
+        }
+        
+        has_access = dashboard_access.get(dashboard_type, False)
+        
+        return Response({
+            'has_access': has_access,
+            'user_role': user.role,
+            'requested_dashboard': dashboard_type
+        })
