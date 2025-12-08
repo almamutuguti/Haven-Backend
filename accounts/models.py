@@ -103,6 +103,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+
+    is_email_verified = models.BooleanField(default=False)
+    email_verification_token = models.CharField(max_length=100, blank=True, null=True)
+    email_verification_sent_at = models.DateTimeField(blank=True, null=True)
+    
+    # OTP fields
+    otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_created_at = models.DateTimeField(blank=True, null=True)
+    otp_verified = models.BooleanField(default=False)
+    otp_for_password_reset = models.BooleanField(default=False)
     
     # Contact methods (phone optional)
     phone = models.CharField(

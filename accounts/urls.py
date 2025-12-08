@@ -52,4 +52,4 @@ urlpatterns = [
     path('api/dashboard/organization-admin/overview/', views.OrganizationAdminOverviewAPIView.as_view(), name='organization-admin-overview'),
     path('api/dashboard/organization-admin/first-aiders/', views.OrganizationFirstAidersManagementAPIView.as_view(), name='organization-admin-first-aiders'),
     path('api/dashboard/organization-admin/certifications/', views.OrganizationCertificationsAPIView.as_view(), name='organization-admin-certifications'),
-]
+] 
