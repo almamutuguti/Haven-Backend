@@ -6,6 +6,8 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
 
+from accounts.utils import send_otp_email, send_verification_email
+
 from .permissions import (
     IsSystemAdmin, IsHospitalAdmin, IsOrganizationAdmin,
     CanAccessHospitalDashboard, CanAccessOrganizationDashboard
@@ -23,11 +25,16 @@ except ImportError:
 from .serializers import (
     AdminUserUpdateSerializer,
     ChangePasswordSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetSerializer,
+    RequestOTPSerializer,
     UserRegistrationSerializer, 
     LoginSerializer,
     UserProfileSerializer,
     HospitalSerializer,
-    OrganizationSerializer
+    OrganizationSerializer,
+    VerifyEmailSerializer,
+    VerifyOTPSerializer
 )
 
 
@@ -57,9 +64,13 @@ class RegisterAPIView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
+         # Send verification email
+        send_verification_email(user)
+        
         return Response({
-            'message': 'User registered successfully',
+            'message': 'User registered successfully. Please check your email to verify your account.',
             'user': UserProfileSerializer(user).data,
+            'requires_verification': True
         }, status=status.HTTP_201_CREATED)
 
 
@@ -608,3 +619,222 @@ class UserRoleCheckAPIView(APIView):
             'user_role': user.role,
             'requested_dashboard': dashboard_type
         })
+    
+
+class VerifyEmailAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            user.is_email_verified = True
+            user.email_verification_token = None
+            user.email_verification_sent_at = None
+            user.save()
+            
+            return Response({
+                'message': 'Email verified successfully!',
+                'user': {
+                    'email': user.email,
+                    'is_email_verified': user.is_email_verified
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ResendVerificationEmailAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'No account found with this email.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.is_email_verified:
+            return Response({'message': 'Email is already verified.'}, status=status.HTTP_200_OK)
+        
+        send_verification_email(user)
+        
+        return Response({
+            'message': 'Verification email sent successfully.',
+            'email': user.email
+        }, status=status.HTTP_200_OK)
+
+class RequestOTPAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = RequestOTPSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            # Check if email is verified (optional, depending on your requirements)
+            require_email_verification = request.data.get('require_email_verification', True)
+            
+            if require_email_verification and not user.is_email_verified:
+                return Response({
+                    'error': 'Please verify your email first.',
+                    'requires_verification': True
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            send_otp_email(user, is_password_reset=False)
+            
+            return Response({
+                'message': 'OTP sent successfully.',
+                'email': user.email,
+                'otp_expires_in': '10 minutes'
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class VerifyOTPAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = VerifyOTPSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            user.otp_verified = True
+            user.otp = None
+            user.otp_created_at = None
+            user.save()
+            
+            # Generate JWT tokens for the user
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'OTP verified successfully.',
+                'user': {
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'role': user.role,
+                    'is_email_verified': user.is_email_verified
+                },
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PasswordResetRequestAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            send_otp_email(user, is_password_reset=True)
+            
+            return Response({
+                'message': 'Password reset OTP sent successfully.',
+                'email': user.email,
+                'otp_expires_in': '10 minutes'
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PasswordResetAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            new_password = serializer.validated_data['new_password']
+            
+            # Update password
+            user.set_password(new_password)
+            user.otp = None
+            user.otp_created_at = None
+            user.otp_verified = False
+            user.otp_for_password_reset = False
+            user.save()
+            
+            return Response({
+                'message': 'Password reset successful. You can now login with your new password.',
+                'email': user.email
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class OTPLoginAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        # Combined endpoint for OTP-based login
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        
+        if not email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # If OTP is provided, verify it
+        if otp:
+            serializer = VerifyOTPSerializer(data={'email': email, 'otp': otp})
+            
+            if serializer.is_valid():
+                user = serializer.validated_data['user']
+                user.otp_verified = True
+                user.otp = None
+                user.otp_created_at = None
+                user.save()
+                
+                # Generate JWT tokens
+                refresh = RefreshToken.for_user(user)
+                
+                return Response({
+                    'message': 'Login successful.',
+                    'user': {
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'role': user.role,
+                        'is_email_verified': user.is_email_verified
+                    },
+                    'tokens': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        # If no OTP provided, send OTP
+        serializer = RequestOTPSerializer(data={'email': email})
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            # Check email verification
+            if not user.is_email_verified:
+                return Response({
+                    'error': 'Please verify your email first.',
+                    'requires_verification': True
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            send_otp_email(user, is_password_reset=False)
+            
+            return Response({
+                'message': 'OTP sent successfully.',
+                'email': user.email,
+                'otp_expires_in': '10 minutes',
+                'next_step': 'verify_otp'
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

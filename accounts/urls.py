@@ -9,7 +9,21 @@ urlpatterns = [
     path('api/login/', views.LoginAPIView.as_view(), name='login'),
     path('api/logout/', views.LogoutAPIView.as_view(), name='logout'),
     path('api/refresh-token/', views.RefreshTokenAPIView.as_view(), name='refresh-token'),
-    path('api/change-password/', views.ChangePasswordAPIView.as_view(), name='change-password'),  
+    path('api/change-password/', views.ChangePasswordAPIView.as_view(), name='change-password'),
+
+    # Email Verification
+    path('api/verify-email/', views.VerifyEmailAPIView.as_view(), name='verify-email'),
+    path('api/resend-verification/', views.ResendVerificationEmailAPIView.as_view(), name='resend-verification'),
+    
+    # OTP Authentication
+    path('api/otp/request/', views.RequestOTPAPIView.as_view(), name='request-otp'),
+    path('api/otp/verify/', views.VerifyOTPAPIView.as_view(), name='verify-otp'),
+    path('api/otp/login/', views.OTPLoginAPIView.as_view(), name='otp-login'),
+    
+    # Password Reset
+    path('api/password-reset/request/', views.PasswordResetRequestAPIView.as_view(), name='password-reset-request'),
+    path('api/password-reset/', views.PasswordResetAPIView.as_view(), name='password-reset'),
+      
     
     # ============================================================================
     # USER MANAGEMENT ENDPOINTS (SYSTEM ADMIN ONLY)

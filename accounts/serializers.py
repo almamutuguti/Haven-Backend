@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from accounts.utils import is_email_token_valid, is_otp_valid
 from .models import CustomUser, Organization
 from django.contrib.auth.password_validation import validate_password
 
@@ -122,9 +124,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name', 
             'phone', 'role', 'hospital', 'hospital_id', 
             'organization', 'organization_id', 'date_joined',
-            'badge_number', 'registration_number', 'is_active'
+            'badge_number', 'registration_number', 'is_active',
+            'is_email_verified'
         ]
-        read_only_fields = ['id', 'date_joined', 'badge_number']
+        read_only_fields = ['id', 'date_joined', 'badge_number', 'is_email_verified']
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
@@ -305,3 +308,102 @@ class CertificationSummarySerializer(serializers.Serializer):
     total_certified = serializers.IntegerField()
     pending_renewals = serializers.IntegerField()
     expired_certifications = serializers.IntegerField()
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    
+    def validate(self, attrs):
+        token = attrs.get('token')
+        
+        try:
+            user = CustomUser.objects.get(email_verification_token=token)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("Invalid verification token.")
+        
+        if not is_email_token_valid(user, token):
+            raise serializers.ValidationError("Verification token has expired.")
+        
+        attrs['user'] = user
+        return attrs
+
+class RequestOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email.")
+        
+        if not user.is_active:
+            raise serializers.ValidationError("Account is disabled.")
+        
+        attrs['user'] = user
+        return attrs
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(min_length=6, max_length=6)
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        otp = attrs.get('otp')
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email.")
+        
+        if not is_otp_valid(user, otp):
+            raise serializers.ValidationError("Invalid or expired OTP.")
+        
+        attrs['user'] = user
+        return attrs
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email.")
+        
+        if not user.is_active:
+            raise serializers.ValidationError("Account is disabled.")
+        
+        attrs['user'] = user
+        return attrs
+
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(min_length=6, max_length=6)
+    new_password = serializers.CharField(min_length=6, write_only=True)
+    confirm_password = serializers.CharField(min_length=6, write_only=True)
+    
+    def validate(self, attrs):
+        # Check if passwords match
+        if attrs.get('new_password') != attrs.get('confirm_password'):
+            raise serializers.ValidationError({"new_password": "Passwords do not match."})
+        
+        email = attrs.get('email')
+        otp = attrs.get('otp')
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email.")
+        
+        if not is_otp_valid(user, otp):
+            raise serializers.ValidationError("Invalid or expired OTP.")
+        
+        if not user.otp_for_password_reset:
+            raise serializers.ValidationError("OTP was not requested for password reset.")
+        
+        attrs['user'] = user
+        return attrs

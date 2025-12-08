@@ -245,8 +245,17 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+
+
+# Frontend URL for email verification links
+FRONTEND_URL = 'http://localhost:3000'
+
+# OTP Configuration
+OTP_EXPIRY_MINUTES = 10
+EMAIL_VERIFICATION_EXPIRY_HOURS = 24
 
 
 
