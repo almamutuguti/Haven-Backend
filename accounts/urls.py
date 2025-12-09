@@ -52,6 +52,8 @@ urlpatterns = [
     # ============================================================================
     path('api/dashboard/system-admin/overview/', views.SystemAdminOverviewAPIView.as_view(), name='system-admin-overview'),
     path('api/dashboard/system-admin/users/', views.SystemAdminUsersAPIView.as_view(), name='system-admin-users'),
+    path('api/dashboard/system-admin/activity/', views.SystemAdminRecentActivityAPIView.as_view(), name='system-admin-activity'),
+    path('api/dashboard/system-admin/health/', views.SystemHealthAPIView.as_view(), name='system-admin-health'),
     
     # ============================================================================
     # HOSPITAL ADMIN DASHBOARD ENDPOINTS

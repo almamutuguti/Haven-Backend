@@ -893,3 +893,106 @@ class OTPLoginAPIView(APIView):
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# In your accounts/views.py, add:
+
+class SystemAdminRecentActivityAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        """Get recent system activity"""
+        from django.db.models import Q
+        from datetime import datetime, timedelta
+        
+        # Get activities from last 24 hours
+        day_ago = timezone.now() - timedelta(days=1)
+        
+        # Recent user registrations
+        recent_users = CustomUser.objects.filter(
+            date_joined__gte=day_ago
+        ).values('id', 'username', 'email', 'role', 'date_joined')
+        
+        # Recent organization verifications
+        recent_org_verifications = Organization.objects.filter(
+            updated_at__gte=day_ago,
+            is_verified=True
+        ).values('id', 'name', 'updated_at')
+        
+        # Compile activities
+        activities = []
+        
+        for user in recent_users:
+            activities.append({
+                'type': 'user_registration',
+                'title': 'New User Registration',
+                'description': f'{user["username"]} joined as {user["role"]}',
+                'timestamp': user['date_joined'],
+                'user': {
+                    'username': user['username'],
+                    'role': user['role']
+                }
+            })
+        
+        for org in recent_org_verifications:
+            activities.append({
+                'type': 'organization_verified',
+                'title': 'Organization Verified',
+                'description': f'{org["name"]} verification completed',
+                'timestamp': org['updated_at'],
+                'organization': {
+                    'name': org['name']
+                }
+            })
+        
+        # Sort by timestamp (newest first)
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return Response({
+            'recent_activities': activities[:10]  # Limit to 10 most recent
+        })
+
+class SystemHealthAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        """Get system health metrics"""
+        # This would be more sophisticated in production
+        # Could connect to monitoring systems
+        
+        from django.db import connection
+        import psutil
+        import time
+        
+        # Measure API response time
+        start_time = time.time()
+        # Simple database query to measure performance
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            db_performance = "Optimal"
+        except Exception:
+            db_performance = "Degraded"
+        
+        api_response_time = round((time.time() - start_time) * 1000, 2)
+        
+        # Get server metrics (simplified)
+        server_load = psutil.cpu_percent(interval=1)
+        
+        # Get database connection count (PostgreSQL example)
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+                active_connections = cursor.fetchone()[0]
+        except:
+            active_connections = "Unknown"
+        
+        return Response({
+            'system_health': {
+                'api_response_time': f"{api_response_time}ms",
+                'database_performance': db_performance,
+                'server_load': f"{server_load}%",
+                'active_connections': active_connections,
+                'uptime': "99.9%",  # Would get from system monitoring
+                'timestamp': timezone.now().isoformat()
+            }
+        })
