@@ -8,6 +8,7 @@ from django.db.models import Avg, Count, Q
 
 
 from accounts import serializers
+from accounts.permissions import IsSystemAdmin
 
 
 from .models import Hospital, HospitalRating, HospitalCapacity
@@ -516,3 +517,280 @@ class HospitalStatusUpdateAPIView(generics.UpdateAPIView):
         instance.save()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+    
+
+
+class HospitalListCreateAPIView(generics.ListCreateAPIView):
+    """List active hospitals or create a new hospital"""
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # For normal users, only show active hospitals
+        # For superusers, show all hospitals (including inactive)
+        if self.request.user.is_superuser or self.request.user.role == 'admin':
+            return Hospital.objects.all().order_by('-created_at')
+        return Hospital.objects.filter(is_active=True).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        # Set verified_at if hospital is being verified
+        hospital = serializer.save()
+        if hospital.is_verified and not hospital.verified_at:
+            hospital.verified_at = timezone.now()
+            hospital.save()
+
+class HospitalAllListView(generics.ListAPIView):
+    """List ALL hospitals (including inactive) - Superuser only"""
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get_queryset(self):
+        return Hospital.objects.all().order_by('-created_at')
+
+class HospitalRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a hospital"""
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return HospitalDetailSerializer
+        return HospitalSerializer
+    
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        # Update verified_at timestamp if verification status changed
+        if 'is_verified' in serializer.validated_data:
+            if instance.is_verified and not instance.verified_at:
+                instance.verified_at = timezone.now()
+            elif not instance.is_verified:
+                instance.verified_at = None
+            instance.save()
+    
+    def destroy(self, request, *args, **kwargs):
+        """Soft delete - set is_active to False"""
+        instance = self.get_object()
+        instance.is_active = False
+        instance.deactivated_at = timezone.now()
+        instance.save()
+        return Response({'message': 'Hospital deactivated successfully'}, status=status.HTTP_200_OK)
+
+class HospitalHardDeleteAPIView(generics.DestroyAPIView):
+    """Hard delete hospital - Superuser only"""
+    queryset = Hospital.objects.all()
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        hospital_name = instance.name
+        instance.delete()
+        return Response(
+            {'message': f'Hospital "{hospital_name}" permanently deleted'},
+            status=status.HTTP_200_OK
+        )
+
+class HospitalToggleStatusAPIView(generics.UpdateAPIView):
+    """Toggle hospital operational status"""
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_operational = not instance.is_operational
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class HospitalToggleActiveAPIView(generics.UpdateAPIView):
+    """Toggle hospital active status (deactivate/reactivate)"""
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = not instance.is_active
+        
+        if not instance.is_active:
+            instance.deactivated_at = timezone.now()
+        else:
+            instance.deactivated_at = None
+            
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class HospitalReactivateAPIView(generics.UpdateAPIView):
+    """Reactivate a deactivated hospital - Superuser only"""
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        if instance.is_active:
+            return Response(
+                {'error': 'Hospital is already active'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        instance.is_active = True
+        instance.deactivated_at = None
+        instance.save()
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class HospitalVerifyAPIView(generics.UpdateAPIView):
+    """Verify/Unverify a hospital"""
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    lookup_field = 'id'
+    
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # Toggle verification status
+        instance.is_verified = not instance.is_verified
+        
+        if instance.is_verified and not instance.verified_at:
+            instance.verified_at = timezone.now()
+        elif not instance.is_verified:
+            instance.verified_at = None
+            
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class HospitalSearchAPIView(generics.ListAPIView):
+    """Search hospitals by name, address, or MFL code"""
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        query = self.request.GET.get('q', '').strip()
+        if not query:
+            return Hospital.objects.filter(is_active=True).order_by('-created_at')
+        
+        # Search in multiple fields
+        return Hospital.objects.filter(
+            Q(name__icontains=query) |
+            Q(address__icontains=query) |
+            Q(mfl_code__icontains=query) |
+            Q(email__icontains=query) |
+            Q(phone__icontains=query)
+        ).filter(is_active=True).order_by('-created_at')
+
+class HospitalStatisticsAPIView(APIView):
+    """Get hospital statistics"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        total = Hospital.objects.count()
+        operational = Hospital.objects.filter(is_operational=True).count()
+        verified = Hospital.objects.filter(is_verified=True).count()
+        active = Hospital.objects.filter(is_active=True).count()
+        
+        return Response({
+            'total': total,
+            'operational': operational,
+            'verified': verified,
+            'active': active,
+            'inactive': total - active
+        })
+
+class HospitalExportAPIView(APIView):
+    """Export all hospital data"""
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        hospitals = Hospital.objects.all().order_by('name')
+        
+        # Prepare export data
+        export_data = []
+        for hospital in hospitals:
+            hospital_data = {
+                'id': hospital.id,
+                'name': hospital.name,
+                'hospital_type': hospital.hospital_type,
+                'level': hospital.level,
+                'phone': hospital.phone,
+                'emergency_phone': hospital.emergency_phone,
+                'email': hospital.email,
+                'website': hospital.website,
+                'address': hospital.address,
+                'latitude': float(hospital.latitude) if hospital.latitude else None,
+                'longitude': float(hospital.longitude) if hospital.longitude else None,
+                'mfl_code': hospital.mfl_code,
+                'is_operational': hospital.is_operational,
+                'is_verified': hospital.is_verified,
+                'accepts_emergencies': hospital.accepts_emergencies,
+                'is_active': hospital.is_active,
+                'created_at': hospital.created_at.isoformat() if hospital.created_at else None,
+                'updated_at': hospital.updated_at.isoformat() if hospital.updated_at else None,
+                'verified_at': hospital.verified_at.isoformat() if hospital.verified_at else None,
+                'deactivated_at': hospital.deactivated_at.isoformat() if hospital.deactivated_at else None
+            }
+            export_data.append(hospital_data)
+        
+        return Response(export_data)
+
+class HospitalImportAPIView(APIView):
+    """Import hospital data"""
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def post(self, request):
+        try:
+            data = request.data
+            imported_count = 0
+            updated_count = 0
+            
+            if isinstance(data, str):
+                data = json.loads(data)
+            
+            for hospital_data in data:
+                # Check if hospital exists by name or MFL code
+                existing_hospital = None
+                
+                if hospital_data.get('mfl_code'):
+                    existing_hospital = Hospital.objects.filter(
+                        mfl_code=hospital_data['mfl_code']
+                    ).first()
+                
+                if not existing_hospital and hospital_data.get('name'):
+                    existing_hospital = Hospital.objects.filter(
+                        name__iexact=hospital_data['name']
+                    ).first()
+                
+                if existing_hospital:
+                    # Update existing hospital
+                    for key, value in hospital_data.items():
+                        if hasattr(existing_hospital, key) and key not in ['id', 'created_at']:
+                            setattr(existing_hospital, key, value)
+                    existing_hospital.save()
+                    updated_count += 1
+                else:
+                    # Create new hospital
+                    Hospital.objects.create(**hospital_data)
+                    imported_count += 1
+            
+            return Response({
+                'message': 'Import completed successfully',
+                'imported': imported_count,
+                'updated': updated_count
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Import failed: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )

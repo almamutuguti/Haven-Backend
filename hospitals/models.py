@@ -1,3 +1,4 @@
+from datetime import timezone
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from accounts.models import CustomUser as User
@@ -42,6 +43,15 @@ class Hospital(models.Model):
         on_delete=models.CASCADE,
         related_name='hospital'
     )
+
+    # Add these fields if not already present
+    is_active = models.BooleanField(default=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    
+    # Add these for better location handling
+    latitude = models.DecimalField(max_digits=10, decimal_places=8, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=11, decimal_places=8, null=True, blank=True)
+    address = models.TextField(blank=True) 
     
     # Identification
     place_id = models.CharField(max_length=255, unique=True, blank=True)
@@ -70,6 +80,21 @@ class Hospital(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_hospital_type_display()})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-set verified_at when hospital is verified
+        if self.is_verified and not self.verified_at:
+            self.verified_at = timezone.now()
+        elif not self.is_verified:
+            self.verified_at = None
+            
+        # Auto-set deactivated_at when hospital is deactivated
+        if not self.is_active and not self.deactivated_at:
+            self.deactivated_at = timezone.now()
+        elif self.is_active:
+            self.deactivated_at = None
+            
+        super().save(*args, **kwargs)
 
 
 class HospitalSpecialty(models.Model):
