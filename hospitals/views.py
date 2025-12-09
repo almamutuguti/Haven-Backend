@@ -12,7 +12,7 @@ from accounts import serializers
 
 from .models import Hospital, HospitalRating, HospitalCapacity
 from .serializers import (
-    HospitalDetailSerializer, HospitalRatingSerializer,
+    HospitalDetailSerializer, HospitalRatingSerializer, HospitalSerializer,
     NearbyHospitalsRequestSerializer, HospitalSearchRequestSerializer,
     EmergencyMatchingRequestSerializer, HospitalAvailabilityResponseSerializer,
     CommunicationRequestSerializer, EmergencyResponseSerializer
@@ -467,3 +467,52 @@ class GetFallbackHospitalsAPIView(APIView):
                 {'error': 'Failed to get fallback hospitals'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+class HospitalListCreateAPIView(generics.ListCreateAPIView):
+    """List all hospitals or create a new hospital"""
+    queryset = Hospital.objects.filter(is_active=True).order_by('-created_at')
+    serializer_class = HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return serializers.HospitalSerializer
+        return HospitalDetailSerializer
+
+    def perform_create(self, serializer):
+        # Create location if provided
+        location_data = self.request.data.get('location')
+        if location_data:
+            # You'll need to create location logic here
+            pass
+        serializer.save()
+
+class HospitalRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a hospital"""
+    queryset = Hospital.objects.all()
+    serializer_class = serializers.HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return serializers.HospitalSerializer
+        return HospitalDetailSerializer
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save()
+
+class HospitalStatusUpdateAPIView(generics.UpdateAPIView):
+    """Update hospital operational status"""
+    queryset = Hospital.objects.all()
+    serializer_class = serializers.HospitalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_operational = not instance.is_operational
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)

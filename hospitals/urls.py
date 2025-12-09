@@ -10,6 +10,9 @@ urlpatterns = [
     path('<int:hospital_id>/capabilities/', views.HospitalCapabilitiesAPIView.as_view(), name='hospital-capabilities'),
     path('<int:hospital_id>/availability/', views.CheckHospitalAvailabilityAPIView.as_view(), name='hospital-availability'),
     path('<int:hospital_id>/statistics/', views.HospitalStatisticsAPIView.as_view(), name='hospital-statistics'),
+    path('', views.HospitalListCreateAPIView.as_view(), name='hospital-list-create'),
+    path('<int:id>/', views.HospitalRetrieveUpdateDestroyAPIView.as_view(), name='hospital-detail'),
+    path('<int:id>/update-status/', views.HospitalStatusUpdateAPIView.as_view(), name='hospital-update-status'),
     
     # Matching endpoints
     path('matching/', views.MatchHospitalsForEmergencyAPIView.as_view(), name='hospital-matching'),
