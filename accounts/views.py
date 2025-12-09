@@ -42,38 +42,48 @@ from .serializers import (
 # AUTHENTICATION VIEWS
 # ============================================================================
 
+# views.py - Update RegisterAPIView
+
 class RegisterAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny]
     
     def create(self, request, *args, **kwargs):
-        # Check for existing users
-        existing_users = CustomUser.objects.filter(
-            Q(email=request.data.get('email')) | 
-            Q(phone=request.data.get('phone')) |
-            Q(username=request.data.get('username'))
-        )
-        
-        if existing_users.exists():
-            return Response({
-                'error': 'User with this email, phone or username already exists'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        print(f"\n{'='*80}")
+        print("REGISTER API CALLED")
+        print(f"Request data: {request.data}")
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
-         # Send verification email
-        send_verification_email(user)
+        print(f"User created: {user.email} (ID: {user.id})")
+        print(f"Is email verified: {user.is_email_verified}")
+        print(f"Email verification token before sending: {user.email_verification_token}")
+        
+        # CRITICAL: Pass EMAIL to send_verification_email, not user object
+        result = send_verification_email(user.email)
+        
+        # Refresh user to see if token was saved
+        user.refresh_from_db()
+        print(f"After email sent - Token in DB: '{user.email_verification_token}'")
+        print(f"Expected token: '{result.get('token')}'")
+        print(f"Tokens match: {user.email_verification_token == result.get('token')}")
+        print(f"{'='*80}\n")
         
         return Response({
             'message': 'User registered successfully. Please check your email to verify your account.',
             'user': UserProfileSerializer(user).data,
-            'requires_verification': True
+            'requires_verification': True,
+            'debug': {
+                'token_saved': user.email_verification_token is not None,
+                'token_match': user.email_verification_token == result.get('token')
+            }
         }, status=status.HTTP_201_CREATED)
+    
 
-
+# In views.py, update LoginAPIView
 class LoginAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     
@@ -82,6 +92,15 @@ class LoginAPIView(APIView):
         
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            
+            # Check if email is verified
+            if not user.is_email_verified:
+                return Response({
+                    'message': 'Please verify your email first.',
+                    'requires_verification': True,
+                    'user': UserProfileSerializer(user).data
+                }, status=status.HTTP_200_OK)
+            
             refresh = RefreshToken.for_user(user)
             
             return Response({
@@ -625,7 +644,34 @@ class VerifyEmailAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        serializer = VerifyEmailSerializer(data=request.data)
+        # Print detailed request information
+        print(f"\n{'='*80}")
+        print("VERIFY EMAIL API - REQUEST DETAILS")
+        print(f"Method: {request.method}")
+        print(f"Content-Type: {request.content_type}")
+        print(f"Headers: {dict(request.headers)}")
+        print(f"Request data (raw): {request.body}")
+        print(f"Request data (parsed): {request.data}")
+        
+        # Get token from request
+        token = request.data.get('token')
+        print(f"Token from request.data.get('token'): {token}")
+        print(f"Token type: {type(token)}")
+        print(f"Token length: {len(token) if token else 0}")
+        print(f"{'='*80}\n")
+        
+        # Check if token is None or empty
+        if not token:
+            print("ERROR: Token is None or empty in request")
+            return Response({
+                "detail": "Token is required.",
+                "received_data": str(request.data)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Trim whitespace just in case
+        token = token.strip()
+        
+        serializer = VerifyEmailSerializer(data={'token': token})
         
         if serializer.is_valid():
             user = serializer.validated_data['user']
@@ -633,6 +679,8 @@ class VerifyEmailAPIView(APIView):
             user.email_verification_token = None
             user.email_verification_sent_at = None
             user.save()
+            
+            print(f"Email verified successfully for user: {user.email}")
             
             return Response({
                 'message': 'Email verified successfully!',
@@ -642,8 +690,9 @@ class VerifyEmailAPIView(APIView):
                 }
             }, status=status.HTTP_200_OK)
         
+        print(f"Serializer errors: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    
 class ResendVerificationEmailAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     
@@ -661,13 +710,19 @@ class ResendVerificationEmailAPIView(APIView):
         if user.is_email_verified:
             return Response({'message': 'Email is already verified.'}, status=status.HTTP_200_OK)
         
-        send_verification_email(user)
+        # Pass EMAIL, not user object
+        result = send_verification_email(email)
         
         return Response({
             'message': 'Verification email sent successfully.',
-            'email': user.email
+            'email': user.email,
+            'debug': {
+                'token_generated': result.get('token') is not None,
+                'user_id': user.id
+            }
         }, status=status.HTTP_200_OK)
-
+    
+    
 class RequestOTPAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     

@@ -1,3 +1,4 @@
+from datetime import timezone
 from rest_framework import serializers
 
 from accounts.utils import is_email_token_valid, is_otp_valid
@@ -311,22 +312,71 @@ class CertificationSummarySerializer(serializers.Serializer):
 
 
 class VerifyEmailSerializer(serializers.Serializer):
-    token = serializers.CharField()
+    token = serializers.CharField(required=True)
     
     def validate(self, attrs):
         token = attrs.get('token')
         
+        print(f"\n{'='*60}")
+        print("EMAIL VERIFICATION VALIDATION")
+        print(f"Received token: '{token}'")
+        print(f"Token type: {type(token)}")
+        print(f"Token length: {len(token) if token else 0}")
+        
+        if not token:
+            print("Token is empty in serializer")
+            raise serializers.ValidationError({
+                "detail": "Verification token is required."
+            })
+        
+        # Trim whitespace
+        token = token.strip()
+        
+        # Check database for token
         try:
             user = CustomUser.objects.get(email_verification_token=token)
+            print(f"Found user in DB: {user.email}")
+            print(f"User's token in DB: '{user.email_verification_token}'")
+            print(f"User ID: {user.id}")
+            print(f"User email verified: {user.is_email_verified}")
+            
         except CustomUser.DoesNotExist:
-            raise serializers.ValidationError("Invalid verification token.")
+            print(f"No user found with token: '{token}'")
+            
+            # Debug: Show all users with tokens
+            users_with_tokens = CustomUser.objects.exclude(email_verification_token__isnull=True).exclude(email_verification_token='')
+            print(f"Total users with tokens in DB: {users_with_tokens.count()}")
+            
+            # Show first 5 for debugging
+            for i, u in enumerate(users_with_tokens[:5]):
+                print(f"  {i+1}. User: {u.email}, Token: '{u.email_verification_token}'")
+            
+            raise serializers.ValidationError({
+                "detail": "Invalid verification token. No user found with this token."
+            })
         
+        # Check if token is valid and not expired
         if not is_email_token_valid(user, token):
-            raise serializers.ValidationError("Verification token has expired.")
+            print(f"Token expired or invalid")
+            print(f"Token created at: {user.email_verification_sent_at}")
+            print(f"Current time: {timezone.now()}")
+            raise serializers.ValidationError({
+                "detail": "Verification token has expired."
+            })
         
+        # Check if already verified
+        if user.is_email_verified:
+            print(f"User already verified")
+            raise serializers.ValidationError({
+                "detail": "Email is already verified."
+            })
+        
+        print(f"Token validation successful!")
+        print(f"{'='*60}\n")
         attrs['user'] = user
         return attrs
-
+    
+    
 class RequestOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
     
