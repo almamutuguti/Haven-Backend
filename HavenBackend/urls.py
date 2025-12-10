@@ -50,6 +50,7 @@ urlpatterns = [
     path('hospitals/', include('hospitals.urls')),
     path('hospital-comms/', include('hospital_communication.urls')),  # For hospital communication endpoints
     path('notifications/', include('notifications.urls')),  # For notification endpoints
+    path('verifications/', include('verifications.urls')),  # For verification endpoints
 
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
