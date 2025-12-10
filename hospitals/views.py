@@ -1,3 +1,5 @@
+from datetime import timezone
+import json
 import logging
 from rest_framework import generics, status, permissions, viewsets
 from rest_framework.views import APIView
@@ -13,7 +15,7 @@ from accounts.permissions import IsSystemAdmin
 
 from .models import Hospital, HospitalRating, HospitalCapacity
 from .serializers import (
-    HospitalDetailSerializer, HospitalRatingSerializer, HospitalSerializer,
+    HospitalCreateSerializer, HospitalDetailSerializer, HospitalRatingSerializer, HospitalSerializer,
     NearbyHospitalsRequestSerializer, HospitalSearchRequestSerializer,
     EmergencyMatchingRequestSerializer, HospitalAvailabilityResponseSerializer,
     CommunicationRequestSerializer, EmergencyResponseSerializer
@@ -522,22 +524,31 @@ class HospitalStatusUpdateAPIView(generics.UpdateAPIView):
 
 class HospitalListCreateAPIView(generics.ListCreateAPIView):
     """List active hospitals or create a new hospital"""
-    serializer_class = HospitalSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return HospitalCreateSerializer  # Use create serializer for POST
+        return HospitalSerializer
     
     def get_queryset(self):
         # For normal users, only show active hospitals
         # For superusers, show all hospitals (including inactive)
-        if self.request.user.is_superuser or self.request.user.role == 'admin':
+        if self.request.user.is_superuser or self.request.user.role == 'admin' or self.request.user.role == 'system_admin':
             return Hospital.objects.all().order_by('-created_at')
         return Hospital.objects.filter(is_active=True).order_by('-created_at')
     
     def perform_create(self, serializer):
-        # Set verified_at if hospital is being verified
-        hospital = serializer.save()
-        if hospital.is_verified and not hospital.verified_at:
-            hospital.verified_at = timezone.now()
-            hospital.save()
+        try:
+            hospital = serializer.save()
+            if hospital.is_verified and not hospital.verified_at:
+                hospital.verified_at = timezone.now()
+                hospital.save()
+        except Exception as e:
+            # Re-raise with proper error message
+            raise serializers.ValidationError({
+                'non_field_errors': [f'Failed to create hospital: {str(e)}']
+            })
 
 class HospitalAllListView(generics.ListAPIView):
     """List ALL hospitals (including inactive) - Superuser only"""

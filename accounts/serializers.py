@@ -2,7 +2,7 @@ from datetime import timezone
 from rest_framework import serializers
 
 from accounts.utils import is_email_token_valid, is_otp_valid
-from .models import CustomUser, Organization
+from .models import CustomUser, Organization, SystemSettings
 from django.contrib.auth.password_validation import validate_password
 
 # Import Hospital model with error handling
@@ -457,3 +457,96 @@ class PasswordResetSerializer(serializers.Serializer):
         
         attrs['user'] = user
         return attrs
+
+
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    """Detailed organization serializer"""
+    first_aider_count = serializers.SerializerMethodField()
+    active_first_aider_count = serializers.SerializerMethodField()
+    created_at_formatted = serializers.SerializerMethodField()
+    updated_at_formatted = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Organization
+        fields = [
+            'id', 'name', 'organization_type', 'description',
+            'contact_person', 'phone', 'email', 'website', 'address',
+            'is_active', 'is_verified', 'created_at', 'updated_at',
+            'first_aider_count', 'active_first_aider_count',
+            'created_at_formatted', 'updated_at_formatted'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'first_aider_count', 'active_first_aider_count']
+    
+    def get_first_aider_count(self, obj):
+        return obj.first_aiders.count()
+    
+    def get_active_first_aider_count(self, obj):
+        return obj.first_aiders.filter(is_active=True).count()
+    
+    def get_created_at_formatted(self, obj):
+        return obj.created_at.strftime('%Y-%m-%d %H:%M') if obj.created_at else None
+    
+    def get_updated_at_formatted(self, obj):
+        return obj.updated_at.strftime('%Y-%m-%d %H:%M') if obj.updated_at else None
+
+
+class OrganizationCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating organizations"""
+    class Meta:
+        model = Organization
+        fields = [
+            'name', 'organization_type', 'description',
+            'contact_person', 'phone', 'email', 'website', 'address',
+            'is_active', 'is_verified'
+        ]
+    
+    def validate_email(self, value):
+        if value:
+            # Check if email is already in use by another organization
+            if Organization.objects.filter(email=value).exclude(id=self.instance.id if self.instance else None).exists():
+                raise serializers.ValidationError("This email is already registered to another organization.")
+        return value
+    
+    def create(self, validated_data):
+        # Set created_by if user is authenticated
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            organization = Organization.objects.create(**validated_data)
+            return organization
+        return super().create(validated_data)
+    
+class SystemSettingsSerializer(serializers.ModelSerializer):
+    last_modified_by_name = serializers.CharField(source='last_modified_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'system_name', 'system_email', 'maintenance_mode', 'user_registration_enabled',
+            'email_notifications_enabled', 'sms_notifications_enabled', 'push_notifications_enabled',
+            'backup_frequency', 'data_retention_days', 'security_level',
+            'last_modified', 'last_modified_by', 'last_modified_by_name',
+            'last_security_audit', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['last_modified', 'last_modified_by', 'last_modified_by_name', 
+                           'last_security_audit', 'created_at', 'updated_at']
+    
+    def update(self, instance, validated_data):
+        request = self.context.get('request')
+        if request and request.user:
+            instance.last_modified_by = request.user
+        return super().update(instance, validated_data)
+
+class SystemSettingsUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'system_name', 'system_email', 'maintenance_mode', 'user_registration_enabled',
+            'email_notifications_enabled', 'sms_notifications_enabled', 'push_notifications_enabled',
+            'backup_frequency', 'data_retention_days', 'security_level'
+        ]
+    
+    def update(self, instance, validated_data):
+        request = self.context.get('request')
+        if request and request.user:
+            instance.last_modified_by = request.user
+        return super().update(instance, validated_data)

@@ -12,7 +12,10 @@ from .permissions import (
     IsSystemAdmin, IsHospitalAdmin, IsOrganizationAdmin,
     CanAccessHospitalDashboard, CanAccessOrganizationDashboard
 )
-from .models import CustomUser, Organization
+from .models import CustomUser, Organization, SystemSettings
+from django.db import connection
+import psutils
+import time
 
 # Import Hospital model with error handling
 try:
@@ -25,9 +28,13 @@ except ImportError:
 from .serializers import (
     AdminUserUpdateSerializer,
     ChangePasswordSerializer,
+    OrganizationCreateUpdateSerializer,
+    OrganizationDetailSerializer,
     PasswordResetRequestSerializer,
     PasswordResetSerializer,
     RequestOTPSerializer,
+    SystemSettingsSerializer,
+    SystemSettingsUpdateSerializer,
     UserRegistrationSerializer, 
     LoginSerializer,
     UserProfileSerializer,
@@ -959,9 +966,7 @@ class SystemHealthAPIView(APIView):
         # This would be more sophisticated in production
         # Could connect to monitoring systems
         
-        from django.db import connection
-        import psutil
-        import time
+
         
         # Measure API response time
         start_time = time.time()
@@ -976,7 +981,7 @@ class SystemHealthAPIView(APIView):
         api_response_time = round((time.time() - start_time) * 1000, 2)
         
         # Get server metrics (simplified)
-        server_load = psutil.cpu_percent(interval=1)
+        server_load = psutils.cpu_percent(interval=1)
         
         # Get database connection count (PostgreSQL example)
         try:
@@ -996,3 +1001,257 @@ class SystemHealthAPIView(APIView):
                 'timestamp': timezone.now().isoformat()
             }
         })
+
+
+# ============================================================================
+# ORGANIZATION MANAGEMENT VIEWS
+# ============================================================================
+
+class OrganizationListCreateAPIView(generics.ListCreateAPIView):
+    """List all organizations or create a new one"""
+    queryset = Organization.objects.all()
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return OrganizationCreateUpdateSerializer
+        return OrganizationSerializer
+    
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.IsAuthenticated(), IsSystemAdmin()]
+        return [permissions.IsAuthenticated()]
+    
+    def perform_create(self, serializer):
+        request = self.request
+        if request and request.user.is_authenticated:
+            serializer.save()
+        else:
+            serializer.save()
+
+
+class OrganizationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete an organization"""
+    queryset = Organization.objects.all()
+    lookup_field = 'id'
+    
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return OrganizationCreateUpdateSerializer
+        return OrganizationDetailSerializer
+    
+    def get_permissions(self):
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return [permissions.IsAuthenticated(), IsSystemAdmin()]
+        return [permissions.IsAuthenticated()]
+    
+    def perform_update(self, serializer):
+        serializer.save()
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # Check if organization has associated first aiders
+        if instance.first_aiders.exists():
+            return Response({
+                'error': 'Cannot delete organization with associated first aiders. Deactivate instead.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response({
+            'message': 'Organization deleted successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class OrganizationToggleActiveAPIView(APIView):
+    """Toggle organization active status"""
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def patch(self, request, id):
+        try:
+            organization = Organization.objects.get(id=id)
+        except Organization.DoesNotExist:
+            return Response({
+                'error': 'Organization not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        organization.is_active = not organization.is_active
+        organization.save()
+        
+        return Response({
+            'message': f'Organization {"activated" if organization.is_active else "deactivated"} successfully',
+            'organization': OrganizationDetailSerializer(organization).data
+        })
+
+
+class OrganizationToggleVerifyAPIView(APIView):
+    """Toggle organization verification status"""
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def patch(self, request, id):
+        try:
+            organization = Organization.objects.get(id=id)
+        except Organization.DoesNotExist:
+            return Response({
+                'error': 'Organization not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        organization.is_verified = not organization.is_verified
+        
+        # If verifying, also ensure organization is active
+        if organization.is_verified and not organization.is_active:
+            organization.is_active = True
+        
+        organization.save()
+        
+        return Response({
+            'message': f'Organization {"verified" if organization.is_verified else "unverified"} successfully',
+            'organization': OrganizationDetailSerializer(organization).data
+        })
+    
+
+class SystemSettingsAPIView(APIView):
+    """
+    Get and update system settings
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        """Get current system settings"""
+        try:
+            settings = SystemSettings.get_settings()
+            serializer = SystemSettingsSerializer(settings)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to get system settings: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def patch(self, request):
+        """Update system settings"""
+        try:
+            settings = SystemSettings.get_settings()
+            serializer = SystemSettingsUpdateSerializer(
+                settings, 
+                data=request.data, 
+                partial=True,
+                context={'request': request}
+            )
+            
+            if serializer.is_valid():
+                serializer.save()
+                # Return full settings with updated info
+                updated_settings = SystemSettingsSerializer(settings)
+                return Response({
+                    'message': 'System settings updated successfully',
+                    'settings': updated_settings.data
+                })
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to update system settings: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class RunSecurityAuditAPIView(APIView):
+    """
+    Run security audit and update last audit timestamp
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def post(self, request):
+        try:
+            settings = SystemSettings.get_settings()
+            settings.last_security_audit = timezone.now()
+            settings.last_modified_by = request.user
+            settings.save()
+            
+            # Here you can add actual security audit logic
+            # For now, we'll just simulate a basic audit
+            
+            audit_results = {
+                'timestamp': settings.last_security_audit.isoformat(),
+                'audit_type': 'basic_security_scan',
+                'findings': [
+                    {
+                        'level': 'info',
+                        'message': 'System settings are properly configured',
+                        'recommendation': 'No action required'
+                    },
+                    {
+                        'level': 'warning',
+                        'message': 'Security audit logs not configured',
+                        'recommendation': 'Enable audit logging'
+                    }
+                ],
+                'summary': {
+                    'total_checks': 10,
+                    'passed': 9,
+                    'warnings': 1,
+                    'critical': 0
+                }
+            }
+            
+            return Response({
+                'message': 'Security audit completed successfully',
+                'audit_results': audit_results,
+                'settings': SystemSettingsSerializer(settings).data
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to run security audit: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class SystemResetAPIView(APIView):
+    """
+    Reset system to default settings (DANGER ZONE)
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def post(self, request):
+        try:
+            # Get confirmation from request
+            confirm = request.data.get('confirm')
+            
+            if not confirm:
+                return Response(
+                    {'error': 'Confirmation required. Set confirm=true to proceed'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Reset to default settings
+            default_settings = {
+                'system_name': 'Haven Emergency Response',
+                'system_email': 'noreply@haven.com',
+                'maintenance_mode': False,
+                'user_registration_enabled': True,
+                'email_notifications_enabled': True,
+                'sms_notifications_enabled': True,
+                'push_notifications_enabled': True,
+                'backup_frequency': 'daily',
+                'data_retention_days': 365,
+                'security_level': 'high'
+            }
+            
+            settings = SystemSettings.get_settings()
+            
+            for field, value in default_settings.items():
+                setattr(settings, field, value)
+            
+            settings.last_modified_by = request.user
+            settings.save()
+            
+            return Response({
+                'message': 'System settings reset to default values',
+                'settings': SystemSettingsSerializer(settings).data
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to reset system: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

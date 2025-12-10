@@ -1,4 +1,4 @@
-from datetime import timezone
+from django.utils import timezone
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from accounts.models import CustomUser as User
@@ -40,12 +40,14 @@ class Hospital(models.Model):
     # Location Reference
     location = models.OneToOneField(
         HospitalLocation,
-        on_delete=models.CASCADE,
-        related_name='hospital'
+        on_delete=models.SET_NULL,  # Changed from CASCADE
+        related_name='hospital',
+        null=True,  # Add this line
+        blank=True,  # Add this line
     )
 
     # Add these fields if not already present
-    is_active = models.BooleanField(default=True)
+
     deactivated_at = models.DateTimeField(null=True, blank=True)
     
     # Add these for better location handling

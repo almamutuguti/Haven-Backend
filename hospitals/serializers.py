@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from geolocation.models import HospitalLocation, Location
 from .models import (
     Hospital, HospitalSpecialty, HospitalCapacity, 
     HospitalRating, EmergencyResponse, HospitalWorkingHours
@@ -83,16 +85,120 @@ class HospitalSerializer(serializers.ModelSerializer):
     hospital_type_display = serializers.CharField(source='get_hospital_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
     
+    # Add location data if needed (for display)
+    location_data = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Hospital
         fields = [
             'id', 'name', 'hospital_type', 'hospital_type_display', 'level', 'level_display',
-            'phone', 'emergency_phone', 'email', 'website', 'location',
+            'phone', 'emergency_phone', 'email', 'website',
+            'latitude', 'longitude', 'address',  # Use these directly instead of location
             'place_id', 'mfl_code', 'is_operational', 'is_verified', 'accepts_emergencies',
-            'created_at', 'updated_at', 'verified_at'
+            'created_at', 'updated_at', 'verified_at', 'is_active', 'location_data'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'verified_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'verified_at', 'location_data']
+    
+    def get_location_data(self, obj):
+        """Get location data if exists"""
+        if obj.location:
+            return {
+                'id': obj.location.id,
+                'place_id': obj.location.place_id,
+                'accessibility_notes': obj.location.accessibility_notes,
+                'has_ambulance_bay': obj.location.has_ambulance_bay,
+            }
+        return None
+    
+    def validate(self, data):
+        """Custom validation for hospital creation"""
+        # Ensure latitude and longitude are valid if provided
+        if data.get('latitude') and not (-90 <= float(data['latitude']) <= 90):
+            raise serializers.ValidationError({
+                'latitude': 'Latitude must be between -90 and 90 degrees'
+            })
+        
+        if data.get('longitude') and not (-180 <= float(data['longitude']) <= 180):
+            raise serializers.ValidationError({
+                'longitude': 'Longitude must be between -180 and 180 degrees'
+            })
+        
+        # Check if phone already exists (if provided)
+        phone = data.get('phone')
+        if phone:
+            existing = Hospital.objects.filter(phone=phone)
+            if self.instance:
+                existing = existing.exclude(id=self.instance.id)
+            if existing.exists():
+                raise serializers.ValidationError({
+                    'phone': 'A hospital with this phone number already exists'
+                })
+        
+        # Check if email already exists (if provided)
+        email = data.get('email')
+        if email:
+            existing = Hospital.objects.filter(email=email)
+            if self.instance:
+                existing = existing.exclude(id=self.instance.id)
+            if existing.exists():
+                raise serializers.ValidationError({
+                    'email': 'A hospital with this email already exists'
+                })
+        
+        return data
 
+# Also update the HospitalCreateSerializer for better error handling
+class HospitalCreateSerializer(HospitalSerializer):
+    """Serializer specifically for creating hospitals with better validation"""
+    
+    class Meta(HospitalSerializer.Meta):
+        fields = HospitalSerializer.Meta.fields
+    
+    def create(self, validated_data):
+        """Create hospital with location if coordinates provided"""
+        try:
+            # Extract location data if provided
+            latitude = validated_data.get('latitude')
+            longitude = validated_data.get('longitude')
+            address = validated_data.get('address')
+            
+            # Create the hospital
+            hospital = Hospital.objects.create(**validated_data)
+            
+            # Create location if coordinates and address are provided
+            if latitude and longitude and address:
+                try:
+                    # Create Location first
+                    location = Location.objects.create(
+                        latitude=latitude,
+                        longitude=longitude,
+                        formatted_address=address,
+                        location_type='emergency'
+                    )
+                    
+                    # Create HospitalLocation
+                    hospital_location = HospitalLocation.objects.create(
+                        location=location,
+                        place_id=validated_data.get('place_id', ''),
+                        has_ambulance_bay=True  # Default for hospitals
+                    )
+                    
+                    # Link to hospital
+                    hospital.location = hospital_location
+                    hospital.save()
+                    
+                except Exception as e:
+                    # If location creation fails, still keep the hospital
+                    print(f"Warning: Failed to create location for hospital: {str(e)}")
+                    # Hospital is already created, so continue
+            
+            return hospital
+            
+        except Exception as e:
+            # Wrap any database errors in validation error for frontend
+            raise serializers.ValidationError({
+                'non_field_errors': [f'Failed to create hospital: {str(e)}']
+            })
 
 class HospitalDetailSerializer(HospitalSerializer):
     """Detailed serializer for Hospital with related data"""

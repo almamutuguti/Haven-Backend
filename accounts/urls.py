@@ -54,6 +54,9 @@ urlpatterns = [
     path('api/dashboard/system-admin/users/', views.SystemAdminUsersAPIView.as_view(), name='system-admin-users'),
     path('api/dashboard/system-admin/activity/', views.SystemAdminRecentActivityAPIView.as_view(), name='system-admin-activity'),
     path('api/dashboard/system-admin/health/', views.SystemHealthAPIView.as_view(), name='system-admin-health'),
+    path('api/settings/system/', views.SystemSettingsAPIView.as_view(), name='system-settings'),
+    path('api/settings/security-audit/', views.RunSecurityAuditAPIView.as_view(), name='run-security-audit'),
+    path('api/settings/reset/', views.SystemResetAPIView.as_view(), name='system-reset'),
     
     # ============================================================================
     # HOSPITAL ADMIN DASHBOARD ENDPOINTS
@@ -68,4 +71,13 @@ urlpatterns = [
     path('api/dashboard/organization-admin/overview/', views.OrganizationAdminOverviewAPIView.as_view(), name='organization-admin-overview'),
     path('api/dashboard/organization-admin/first-aiders/', views.OrganizationFirstAidersManagementAPIView.as_view(), name='organization-admin-first-aiders'),
     path('api/dashboard/organization-admin/certifications/', views.OrganizationCertificationsAPIView.as_view(), name='organization-admin-certifications'),
+
+    # ============================================================================
+    # ORGANIZATION MANAGEMENT ENDPOINTS
+    # ============================================================================
+    path('api/organizations/', views.OrganizationListCreateAPIView.as_view(), name='organization-list-create'),
+    path('api/organizations/<int:id>/', views.OrganizationDetailAPIView.as_view(), name='organization-detail'),
+    path('api/organizations/<int:id>/toggle-active/', views.OrganizationToggleActiveAPIView.as_view(), name='organization-toggle-active'),
+    path('api/organizations/<int:id>/toggle-verify/', views.OrganizationToggleVerifyAPIView.as_view(), name='organization-toggle-verify'),
+
 ] 

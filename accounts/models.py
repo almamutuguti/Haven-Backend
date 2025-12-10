@@ -2,6 +2,7 @@ import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.core.validators import RegexValidator
+from django.forms import ValidationError
 from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
@@ -187,3 +188,79 @@ class EmergencyAccessLog(models.Model):
     
     class Meta:
         db_table = 'accounts_emergency_access_logs'
+
+class SystemSettings(models.Model):
+    """
+    System-wide configuration settings for the Haven platform
+    """
+    # General Settings
+    system_name = models.CharField(max_length=255, default="Haven Emergency Response")
+    system_email = models.EmailField(default="noreply@haven.com")
+    
+    # Feature Flags
+    maintenance_mode = models.BooleanField(default=False)
+    user_registration_enabled = models.BooleanField(default=True)
+    
+    # Notification Settings
+    email_notifications_enabled = models.BooleanField(default=True)
+    sms_notifications_enabled = models.BooleanField(default=True)
+    push_notifications_enabled = models.BooleanField(default=True)
+    
+    # Data Management
+    backup_frequency = models.CharField(
+        max_length=20,
+        choices=[
+            ('hourly', 'Hourly'),
+            ('daily', 'Daily'),
+            ('weekly', 'Weekly'),
+            ('monthly', 'Monthly'),
+        ],
+        default='daily'
+    )
+    data_retention_days = models.PositiveIntegerField(default=365)
+    
+    # Security Settings
+    security_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('low', 'Low'),
+            ('medium', 'Medium'),
+            ('high', 'High'),
+            ('maximum', 'Maximum'),
+        ],
+        default='high'
+    )
+    
+    # Audit Information
+    last_modified = models.DateTimeField(auto_now=True)
+    last_modified_by = models.ForeignKey(
+        'CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='modified_settings'
+    )
+    last_security_audit = models.DateTimeField(null=True, blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'system_settings'
+        verbose_name = 'System Settings'
+        verbose_name_plural = 'System Settings'
+    
+    def __str__(self):
+        return f"System Settings (Last modified: {self.last_modified})"
+    
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists
+        if not self.pk and SystemSettings.objects.exists():
+            raise ValidationError("Only one SystemSettings instance can exist")
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_settings(cls):
+        """Get or create system settings instance"""
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj

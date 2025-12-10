@@ -38,12 +38,15 @@ packaging==25.0
 phonenumbers==9.0.15
 pillow==11.3.0
 prompt_toolkit==3.0.52
+psutils==3.3.14
 psycopg2==2.9.10
+puremagic==1.30
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
 PyJWT==2.10.1
 pyOpenSSL==25.3.0
+pypdf==6.4.1
 python-dateutil==2.9.0.post0
 python-decouple==3.8
 pytz==2025.2
