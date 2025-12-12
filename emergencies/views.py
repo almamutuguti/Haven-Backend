@@ -296,18 +296,275 @@ class ActiveEmergenciesAPIView(APIView):
     def get(self, request):
         try:
             # Check if user has permission to view all active emergencies
-            if not request.user.role in ['system_admin', 'hospital_staff', 'first_aider']:
+            if not request.user.role in ['system_admin', 'hospital_staff', 'first_aider', 'hospital_admin']:
                 return Response(
                     {'error': 'Permission denied'},
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-            alerts = AlertService.get_active_emergencies()
+            alerts = EmergencyAlert.objects.filter(
+                is_active=True
+            ).exclude(
+                status__in=['cancelled', 'completed', 'expired']
+            ).order_by('-created_at')
+            
+            # For hospital staff/admins, only show emergencies relevant to their hospital
+            if request.user.role in ['hospital_admin', 'hospital_staff']:
+                # Filter by hospital area (based on location proximity)
+                # For now, return all active emergencies
+                # In production, you would filter by hospital location radius
+                pass
+            
             serializer = EmergencyAlertSerializer(alerts, many=True)
             return Response(serializer.data)
             
         except Exception as e:
             logger.error(f"Failed to get active emergencies: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class HospitalAssignedEmergenciesAPIView(APIView):
+    """
+    Get emergencies that should be handled by a specific hospital
+    GET emergencies/hospital/<int:hospital_id>/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, hospital_id):
+        try:
+            # Check if user has permission to view hospital emergencies
+            if not request.user.role in ['system_admin', 'hospital_admin', 'hospital_staff']:
+                return Response(
+                    {'error': 'Permission denied'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # For hospital staff/admins, ensure they can only see their hospital's emergencies
+            if request.user.role in ['hospital_admin', 'hospital_staff']:
+                user_hospital_id = request.user.hospital_id or (request.user.hospital.id if request.user.hospital else None)
+                if user_hospital_id != int(hospital_id):
+                    return Response(
+                        {'error': 'You can only view emergencies for your assigned hospital'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Get active emergencies
+            emergencies = EmergencyAlert.objects.filter(
+                is_active=True
+            ).exclude(
+                status__in=['cancelled', 'completed', 'expired']
+            ).order_by('-created_at')
+            
+            # In a real implementation, you would:
+            # 1. Get hospital location from hospitals app
+            # 2. Filter emergencies by proximity to hospital
+            # 3. Consider hospital specialties and capacity
+            
+            # For demonstration, let's return all active emergencies
+            # with a note about hospital assignment logic
+            serializer = EmergencyAlertSerializer(emergencies, many=True)
+            
+            return Response({
+                'hospital_id': hospital_id,
+                'emergencies_count': len(serializer.data),
+                'emergencies': serializer.data,
+                'note': 'This endpoint shows all active emergencies. To filter by hospital, implement location-based proximity matching.'
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to get hospital emergencies: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class RecentEmergenciesAPIView(APIView):
+    """
+    Get recent emergencies (last 24 hours)
+    GET emergencies/recent/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            # Check if user has permission to view recent emergencies
+            if not request.user.role in ['system_admin', 'hospital_admin', 'hospital_staff', 'first_aider']:
+                return Response(
+                    {'error': 'Permission denied'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Get emergencies from last 24 hours
+            twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+            
+            emergencies = EmergencyAlert.objects.filter(
+                created_at__gte=twenty_four_hours_ago,
+                is_active=True
+            ).exclude(
+                status__in=['cancelled', 'completed', 'expired']
+            ).order_by('-created_at')[:50]  # Limit to 50 most recent
+            
+            serializer = EmergencyAlertSerializer(emergencies, many=True)
+            
+            return Response({
+                'timeframe': 'last 24 hours',
+                'emergencies_count': len(serializer.data),
+                'emergencies': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to get recent emergencies: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class EmergencyStatisticsAPIView(APIView):
+    """
+    Get emergency statistics
+    GET emergencies/statistics/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Check if user has permission to view statistics
+            if not request.user.role in ['system_admin', 'hospital_admin']:
+                return Response(
+                    {'error': 'Permission denied'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            now = timezone.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            week_ago = now - timedelta(days=7)
+            month_ago = now - timedelta(days=30)
+            
+            # Calculate statistics
+            total_emergencies = EmergencyAlert.objects.count()
+            active_emergencies = EmergencyAlert.objects.filter(
+                is_active=True
+            ).exclude(
+                status__in=['cancelled', 'completed', 'expired']
+            ).count()
+            
+            today_emergencies = EmergencyAlert.objects.filter(
+                created_at__gte=today_start
+            ).count()
+            
+            week_emergencies = EmergencyAlert.objects.filter(
+                created_at__gte=week_ago
+            ).count()
+            
+            month_emergencies = EmergencyAlert.objects.filter(
+                created_at__gte=month_ago
+            ).count()
+            
+            # Emergency types breakdown
+            emergency_types = EmergencyAlert.objects.values('emergency_type').annotate(
+                count=models.Count('id')
+            ).order_by('-count')
+            
+            # Status breakdown
+            status_breakdown = EmergencyAlert.objects.values('status').annotate(
+                count=models.Count('id')
+            ).order_by('-count')
+            
+            statistics = {
+                'overview': {
+                    'total_emergencies': total_emergencies,
+                    'active_emergencies': active_emergencies,
+                    'today_emergencies': today_emergencies,
+                    'week_emergencies': week_emergencies,
+                    'month_emergencies': month_emergencies,
+                },
+                'emergency_types': list(emergency_types),
+                'status_breakdown': list(status_breakdown),
+                'timestamp': now.isoformat()
+            }
+            
+            return Response(statistics)
+            
+        except Exception as e:
+            logger.error(f"Failed to get emergency statistics: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class EmergencyDetailAPIView(APIView):
+    """
+    Get detailed information about a specific emergency
+    GET emergencies/<str:alert_id>/detail/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, alert_id):
+        try:
+            # Get the emergency alert
+            emergency = get_object_or_404(EmergencyAlert, alert_id=alert_id)
+            
+            # Check permissions
+            # System admins can see all emergencies
+            # Hospital staff can see emergencies in their area
+            # First aiders can see emergencies they're responding to
+            # Regular users can only see their own emergencies
+            
+            if request.user.role == 'first_aider':
+                # First aiders can see all emergencies (for response purposes)
+                pass
+            elif request.user.role in ['hospital_admin', 'hospital_staff']:
+                # Hospital staff can see emergencies in their hospital area
+                # In production, add location-based filtering
+                pass
+            elif request.user.role == 'system_admin':
+                # System admins can see everything
+                pass
+            else:
+                # Regular users can only see their own emergencies
+                if emergency.user != request.user:
+                    return Response(
+                        {'error': 'Permission denied'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Serialize emergency data
+            emergency_serializer = EmergencyAlertSerializer(emergency)
+            
+            # Get updates for this emergency
+            updates = EmergencyUpdate.objects.filter(alert=emergency).order_by('-created_at')
+            updates_serializer = EmergencyUpdateSerializer(updates, many=True)
+            
+            # Prepare response
+            response_data = {
+                'emergency': emergency_serializer.data,
+                'updates': updates_serializer.data,
+                'updates_count': len(updates_serializer.data),
+                'is_own_emergency': emergency.user == request.user,
+                'can_respond': request.user.role in ['first_aider', 'hospital_staff', 'hospital_admin']
+            }
+            
+            return Response(response_data)
+            
+        except EmergencyAlert.DoesNotExist:
+            return Response(
+                {'error': 'Emergency not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Failed to get emergency detail: {str(e)}")
             return Response(
                 {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -23,7 +23,7 @@ class HospitalSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'organization_type', 'description', 'phone', 'email']
+        fields = ['id', 'name', 'organization_type', 'contact_person', 'phone', 'email', 'is_active', 'is_verified', 'address', 'website', 'created_at', 'updated_at', 'description']
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -226,11 +226,10 @@ class DashboardUserSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip()
 
-
 class OrganizationDashboardSerializer(serializers.ModelSerializer):
     """Organization serializer with additional dashboard statistics"""
-    first_aider_count = serializers.SerializerMethodField()
-    active_first_aider_count = serializers.SerializerMethodField()
+    first_aider_count = serializers.IntegerField(read_only=True)
+    active_first_aider_count = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Organization
@@ -242,11 +241,13 @@ class OrganizationDashboardSerializer(serializers.ModelSerializer):
         ]
     
     def get_first_aider_count(self, obj):
-        return obj.first_aiders.count()
+        # Count all users with role 'first_aider' in this organization
+        return obj.first_aiders.filter(role='first_aider').count()
     
     def get_active_first_aider_count(self, obj):
-        return obj.first_aiders.filter(is_active=True).count()
-
+        # Count active users with role 'first_aider' in this organization
+        return obj.first_aiders.filter(role='first_aider', is_active=True).count()
+    
 
 class HospitalDashboardSerializer(serializers.ModelSerializer):
     """Hospital serializer with additional dashboard statistics"""
@@ -463,8 +464,6 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     """Detailed organization serializer"""
     first_aider_count = serializers.SerializerMethodField()
     active_first_aider_count = serializers.SerializerMethodField()
-    created_at_formatted = serializers.SerializerMethodField()
-    updated_at_formatted = serializers.SerializerMethodField()
     
     class Meta:
         model = Organization
@@ -472,24 +471,16 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             'id', 'name', 'organization_type', 'description',
             'contact_person', 'phone', 'email', 'website', 'address',
             'is_active', 'is_verified', 'created_at', 'updated_at',
-            'first_aider_count', 'active_first_aider_count',
-            'created_at_formatted', 'updated_at_formatted'
+            'first_aider_count', 'active_first_aider_count'
         ]
-        read_only_fields = ['created_at', 'updated_at', 'first_aider_count', 'active_first_aider_count']
     
     def get_first_aider_count(self, obj):
-        return obj.first_aiders.count()
+        return obj.first_aiders.filter(role='first_aider').count()
     
     def get_active_first_aider_count(self, obj):
-        return obj.first_aiders.filter(is_active=True).count()
+        return obj.first_aiders.filter(role='first_aider', is_active=True).count()
     
-    def get_created_at_formatted(self, obj):
-        return obj.created_at.strftime('%Y-%m-%d %H:%M') if obj.created_at else None
     
-    def get_updated_at_formatted(self, obj):
-        return obj.updated_at.strftime('%Y-%m-%d %H:%M') if obj.updated_at else None
-
-
 class OrganizationCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating organizations"""
     class Meta:

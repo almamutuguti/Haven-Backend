@@ -72,12 +72,15 @@ urlpatterns = [
     path('api/dashboard/organization-admin/first-aiders/', views.OrganizationFirstAidersManagementAPIView.as_view(), name='organization-admin-first-aiders'),
     path('api/dashboard/organization-admin/certifications/', views.OrganizationCertificationsAPIView.as_view(), name='organization-admin-certifications'),
 
+
     # ============================================================================
     # ORGANIZATION MANAGEMENT ENDPOINTS
     # ============================================================================
-    path('api/organizations/', views.OrganizationListCreateAPIView.as_view(), name='organization-list-create'),
+    path('api/organizations/create/', views.OrganizationListCreateAPIView.as_view(), name='organization-list-create'),
     path('api/organizations/<int:id>/', views.OrganizationDetailAPIView.as_view(), name='organization-detail'),
     path('api/organizations/<int:id>/toggle-active/', views.OrganizationToggleActiveAPIView.as_view(), name='organization-toggle-active'),
     path('api/organizations/<int:id>/toggle-verify/', views.OrganizationToggleVerifyAPIView.as_view(), name='organization-toggle-verify'),
+    path('api/organizations/export/', views.OrganizationExportAPIView.as_view(), name='organization-export'),
+    path('api/organizations/my-organization/update/', views.MyOrganizationUpdateAPIView.as_view(), name='my-organization-update'),
 
 ] 

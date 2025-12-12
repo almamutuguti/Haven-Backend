@@ -604,3 +604,87 @@ class PatientAssessment(models.Model):
             'stable': 'low'
         }
         return priority_map.get(self.condition, 'medium')
+
+
+class HospitalReport(models.Model):
+    """
+    Model for storing generated hospital reports
+    """
+    REPORT_TYPE_CHOICES = [
+        ('summary', 'Summary Report'),
+        ('detailed', 'Detailed Report'),
+        ('analytics', 'Analytics Report'),
+        ('performance', 'Performance Report'),
+        ('emergency', 'Emergency Communications Report'),
+    ]
+    
+    PERIOD_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('yearly', 'Yearly'),
+        ('custom', 'Custom Date Range'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    hospital = models.ForeignKey(
+        Hospital,
+        on_delete=models.CASCADE,
+        related_name='reports'
+    )
+    generated_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='generated_reports'
+    )
+    
+    # Report metadata
+    title = models.CharField(max_length=255)
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPE_CHOICES, default='summary')
+    period = models.CharField(max_length=20, choices=PERIOD_CHOICES, default='monthly')
+    
+    # Date range
+    start_date = models.DateField()
+    end_date = models.DateField()
+    
+    # Report data (stored as JSON for flexibility)
+    statistics = models.JSONField(default=dict, help_text="Report statistics and metrics")
+    breakdowns = models.JSONField(default=dict, help_text="Data breakdowns by category")
+    communications = models.JSONField(default=list, help_text="Summary of communications")
+    recommendations = models.JSONField(default=list, help_text="Generated recommendations")
+    
+    # File storage
+    pdf_file = models.FileField(upload_to='hospital_reports/', null=True, blank=True)
+    csv_file = models.FileField(upload_to='hospital_reports/csv/', null=True, blank=True)
+    
+    # Status
+    is_generated = models.BooleanField(default=True)
+    is_shared = models.BooleanField(default=False)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    generated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'hospital_reports'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['hospital', 'created_at']),
+            models.Index(fields=['report_type', 'period']),
+        ]
+    
+    def __str__(self):
+        return f"Report: {self.title} - {self.hospital.name}"
+    
+    @property
+    def file_url(self):
+        if self.pdf_file:
+            return self.pdf_file.url
+        return None
+    
+    @property
+    def csv_url(self):
+        if self.csv_file:
+            return self.csv_file.url
+        return None

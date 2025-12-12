@@ -26,6 +26,13 @@ router.register(
     basename='first-aider-assessment'
 )
 
+router.register(
+    r'reports',
+    views.HospitalReportViewSet,
+    basename='hospital-report'
+)
+
+
 urlpatterns = [
     path('api/', include(router.urls)),
 ]
@@ -92,5 +99,21 @@ urlpatterns += [
         'api/communications/<uuid:pk>/get-or-create-assessment/',
         views.EmergencyHospitalCommunicationViewSet.as_view({'get': 'get_or_create_assessment'}),
         name='get-or-create-assessment'
+    ),
+
+     path(
+        'api/reports/statistics/',
+        views.HospitalStatisticsReportAPIView.as_view(),
+        name='hospital-statistics-report'
+    ),
+    path(
+        'api/reports/export-data/',
+        views.ExportCommunicationsDataAPIView.as_view(),
+        name='export-communications-data'
+    ),
+    path(
+        'api/reports/generate/',
+        views.HospitalReportViewSet.as_view({'post': 'generate'}),
+        name='generate-report'
     ),
 ]

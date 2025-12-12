@@ -1,3 +1,4 @@
+from django.forms import ValidationError
 from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,7 +15,7 @@ from .permissions import (
 )
 from .models import CustomUser, Organization, SystemSettings
 from django.db import connection
-import psutils
+import psutil
 import time
 
 # Import Hospital model with error handling
@@ -29,6 +30,7 @@ from .serializers import (
     AdminUserUpdateSerializer,
     ChangePasswordSerializer,
     OrganizationCreateUpdateSerializer,
+    OrganizationDashboardSerializer,
     OrganizationDetailSerializer,
     PasswordResetRequestSerializer,
     PasswordResetSerializer,
@@ -310,13 +312,12 @@ class HospitalListAPIView(generics.ListAPIView):
 
 
 class OrganizationListAPIView(generics.ListAPIView):
-    serializer_class = OrganizationSerializer
+    serializer_class = OrganizationDashboardSerializer  # Use dashboard serializer
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
         return Organization.objects.all().order_by('name')
-
-
+    
 # ============================================================================
 # SYSTEM ADMIN DASHBOARD VIEWS
 # ============================================================================
@@ -330,6 +331,8 @@ class SystemAdminOverviewAPIView(APIView):
         total_users = CustomUser.objects.count()
         active_users = CustomUser.objects.filter(is_active=True).count()
         users_by_role = CustomUser.objects.values('role').annotate(count=Count('id'))
+        total_first_aiders = CustomUser.objects.filter(role='first_aider').count()
+        active_first_aiders = CustomUser.objects.filter(role='first_aider', is_active=True).count()
         
         # Organization statistics
         total_organizations = Organization.objects.count()
@@ -359,6 +362,8 @@ class SystemAdminOverviewAPIView(APIView):
                 'total_organizations': total_organizations,
                 'verified_organizations': verified_organizations,
                 'active_organizations': active_organizations,
+                'total_first_aiders': total_first_aiders,
+                'active_first_aiders': active_first_aiders,
                 **hospital_stats
             }
         })
@@ -981,7 +986,7 @@ class SystemHealthAPIView(APIView):
         api_response_time = round((time.time() - start_time) * 1000, 2)
         
         # Get server metrics (simplified)
-        server_load = psutils.cpu_percent(interval=1)
+        server_load = psutil.cpu_percent(interval=1)
         
         # Get database connection count (PostgreSQL example)
         try:
@@ -1009,7 +1014,7 @@ class SystemHealthAPIView(APIView):
 
 class OrganizationListCreateAPIView(generics.ListCreateAPIView):
     """List all organizations or create a new one"""
-    queryset = Organization.objects.all()
+    queryset = Organization.objects.all().order_by('-created_at')
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -1022,17 +1027,27 @@ class OrganizationListCreateAPIView(generics.ListCreateAPIView):
         return [permissions.IsAuthenticated()]
     
     def perform_create(self, serializer):
-        request = self.request
-        if request and request.user.is_authenticated:
-            serializer.save()
-        else:
-            serializer.save()
-
+        serializer.save()
+    
+    def create(self, request, *args, **kwargs):
+        try:
+            response = super().create(request, *args, **kwargs)
+            # Customize the response
+            return Response({
+                'message': 'Organization created successfully',
+                'organization': response.data
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({
+                'error': f'Failed to create organization: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
 
 class OrganizationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete an organization"""
     queryset = Organization.objects.all()
     lookup_field = 'id'
+    serializer_class = OrganizationDetailSerializer
     
     def get_serializer_class(self):
         if self.request.method in ['PUT', 'PATCH']:
@@ -1040,9 +1055,23 @@ class OrganizationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         return OrganizationDetailSerializer
     
     def get_permissions(self):
-        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+        if self.request.method == 'DELETE':
             return [permissions.IsAuthenticated(), IsSystemAdmin()]
+        elif self.request.method in ['PUT', 'PATCH']:
+            # Allow system admins AND organization admins to update
+            return [permissions.IsAuthenticated(), IsSystemAdminOrOrganizationAdmin()]
+        # GET requests - allow any authenticated user to view
         return [permissions.IsAuthenticated()]
+    
+    def check_object_permissions(self, request, obj):
+        """Check if user has permission to access this specific organization"""
+        super().check_object_permissions(request, obj)
+        
+        # For organization admins, they can only update their own organization
+        if request.method in ['PUT', 'PATCH']:
+            if request.user.role == 'organization_admin':
+                if request.user.organization != obj:
+                    raise PermissionDenied("You can only update your own organization")
     
     def perform_update(self, serializer):
         serializer.save()
@@ -1060,7 +1089,7 @@ class OrganizationDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         return Response({
             'message': 'Organization deleted successfully'
         }, status=status.HTTP_200_OK)
-
+    
 
 class OrganizationToggleActiveAPIView(APIView):
     """Toggle organization active status"""
@@ -1255,3 +1284,82 @@ class SystemResetAPIView(APIView):
                 {'error': f'Failed to reset system: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class OrganizationExportAPIView(APIView):
+    """Export organization data"""
+    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+    
+    def get(self, request):
+        """Export all organizations data"""
+        try:
+            organizations = Organization.objects.all().order_by('-created_at')
+            
+            # Create detailed organization data
+            data = []
+            for org in organizations:
+                org_data = {
+                    'id': org.id,
+                    'name': org.name,
+                    'organization_type': org.organization_type,
+                    'organization_type_display': org.get_organization_type_display() if hasattr(org, 'get_organization_type_display') else org.organization_type,
+                    'description': org.description,
+                    'contact_person': org.contact_person,
+                    'phone': org.phone,
+                    'email': org.email,
+                    'website': org.website,
+                    'address': org.address,
+                    'is_active': org.is_active,
+                    'is_verified': org.is_verified,
+                    'created_at': org.created_at.isoformat() if org.created_at else None,
+                    'updated_at': org.updated_at.isoformat() if org.updated_at else None,
+                    'first_aider_count': org.first_aiders.count(),
+                    'active_first_aider_count': org.first_aiders.filter(is_active=True).count(),
+                }
+                data.append(org_data)
+            
+            # Add export metadata
+            export_data = {
+                'export_info': {
+                    'exported_at': timezone.now().isoformat(),
+                    'exported_by': {
+                        'id': request.user.id,
+                        'username': request.user.username,
+                        'email': request.user.email
+                    },
+                    'total_organizations': len(data),
+                    'format': 'json'
+                },
+                'organizations': data
+            }
+            
+            return Response(export_data)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to export data: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class MyOrganizationUpdateAPIView(generics.UpdateAPIView):
+    """Organization admins can update their own organization"""
+    serializer_class = OrganizationCreateUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationAdmin]
+    
+    def get_object(self):
+        # Organization admin can only update their own organization
+        user = self.request.user
+        if not user.organization:
+            raise ValidationError("You are not associated with any organization")
+        return user.organization
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response({
+            'message': 'Organization updated successfully',
+            'organization': OrganizationDetailSerializer(instance).data
+        })

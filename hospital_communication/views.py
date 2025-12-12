@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+from venv import logger
+from django.http import HttpResponse
 from rest_framework import viewsets, status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -6,11 +9,14 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from emergencies import serializers
+from hospital_communication.utils import ReportGenerator
+from hospitals.models import Hospital
 from .models import (
     EmergencyHospitalCommunication, 
     CommunicationLog,
     HospitalPreparationChecklist,
     FirstAiderAssessment,
+    HospitalReport,
     PatientAssessment
 )
 from .serializers import (
@@ -23,8 +29,10 @@ from .serializers import (
     FirstAiderAssessmentCreateSerializer,
     FirstAiderAssessmentSerializer,
     CommunicationLogSerializer,
+    HospitalReportSerializer,
     PatientAssessmentCreateSerializer,
-    PatientAssessmentSerializer
+    PatientAssessmentSerializer,
+    ReportRequestSerializer
 )
 from .services import HospitalCommunicationService, HospitalResponseService
 # Update permissions import to use correct path
@@ -931,3 +939,400 @@ class PatientAssessmentViewSet(viewsets.ModelViewSet):
         raise serializers.ValidationError(
             "Use the communication assessment endpoint to create patient assessments"
         )
+    
+
+class HospitalReportViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing hospital reports
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = HospitalReportSerializer
+    queryset = HospitalReport.objects.all()
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Filter based on user role
+        if user.role == 'hospital_staff' or user.role == 'hospital_admin':
+            if hasattr(user, 'hospital') and user.hospital:
+                queryset = queryset.filter(hospital=user.hospital)
+            else:
+                return HospitalReport.objects.none()
+        
+        # Filter by hospital ID if provided
+        hospital_id = self.request.query_params.get('hospital')
+        if hospital_id:
+            queryset = queryset.filter(hospital_id=hospital_id)
+        
+        # Filter by date range
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date and end_date:
+            queryset = queryset.filter(
+                start_date__gte=start_date,
+                end_date__lte=end_date
+            )
+        
+        # Filter by report type
+        report_type = self.request.query_params.get('report_type')
+        if report_type:
+            queryset = queryset.filter(report_type=report_type)
+        
+        return queryset.select_related('hospital', 'generated_by')
+    
+    def perform_create(self, serializer):
+        serializer.save(generated_by=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def generate(self, request):
+        """
+        Generate a new hospital report
+        POST /api/hospital-comms/reports/generate/
+        """
+        serializer = ReportRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            data = serializer.validated_data
+            user = request.user
+            
+            # Get hospital for current user
+            hospital = None
+            if hasattr(user, 'hospital') and user.hospital:
+                hospital = user.hospital
+            elif request.data.get('hospital_id'):
+                hospital = get_object_or_404(Hospital, id=request.data['hospital_id'])
+            
+            if not hospital:
+                return Response(
+                    {'error': 'No hospital assigned to user or specified'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check permissions
+            if user.role in ['hospital_staff', 'hospital_admin'] and hasattr(user, 'hospital'):
+                if user.hospital != hospital:
+                    return Response(
+                        {'error': 'You can only generate reports for your assigned hospital'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Get date range
+            start_date, end_date = ReportGenerator.get_date_range_for_period(
+                data['period'],
+                data.get('start_date'),
+                data.get('end_date')
+            )
+            
+            # Calculate statistics
+            statistics = ReportGenerator.calculate_statistics(hospital, start_date, end_date)
+            
+            # Get communications summary
+            communications_summary = []
+            if data['include_communications']:
+                communications_summary = ReportGenerator.get_communications_summary(
+                    hospital, start_date, end_date
+                )
+            
+            # Generate recommendations
+            recommendations = []
+            if data['include_recommendations']:
+                recommendations = ReportGenerator.generate_recommendations(statistics)
+            
+            # Create report title
+            period_display = dict(HospitalReport.PERIOD_CHOICES).get(data['period'], data['period'])
+            report_type_display = dict(HospitalReport.REPORT_TYPE_CHOICES).get(data['report_type'], data['report_type'])
+            title = f"{report_type_display} - {hospital.name} ({period_display})"
+            
+            # Create report instance
+            report_data = {
+                'hospital': hospital.id,
+                'title': title,
+                'report_type': data['report_type'],
+                'period': data['period'],
+                'start_date': start_date,
+                'end_date': end_date,
+                'statistics': statistics,
+                'breakdowns': {
+                    'by_status': statistics.get('communications_by_status', {}),
+                    'by_priority': statistics.get('communications_by_priority', {}),
+                    'by_time': statistics.get('communications_by_time', {}),
+                },
+                'communications': communications_summary,
+                'recommendations': recommendations,
+            }
+            
+            report_serializer = HospitalReportSerializer(data=report_data, context={'request': request})
+            
+            if not report_serializer.is_valid():
+                return Response(report_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            report = report_serializer.save(generated_by=user)
+            
+            # Generate files if requested
+            if data['generate_csv']:
+                try:
+                    # Generate CSV file
+                    from django.core.files.base import ContentFile
+                    csv_content = ReportGenerator.generate_csv_report(
+                        hospital,
+                        start_date,
+                        end_date,
+                        EmergencyHospitalCommunication.objects.filter(
+                            hospital=hospital,
+                            created_at__date__gte=start_date,
+                            created_at__date__lte=end_date
+                        )
+                    )
+                    
+                    csv_file = ContentFile(csv_content.encode('utf-8'))
+                    report.csv_file.save(
+                        f"report_{hospital.id}_{start_date}_{end_date}.csv",
+                        csv_file
+                    )
+                    report.save()
+                except Exception as e:
+                    logger.error(f"Failed to generate CSV report: {str(e)}")
+            
+            return Response(
+                HospitalReportSerializer(report).data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except Exception as e:
+            logger.error(f"Report generation failed: {str(e)}")
+            return Response(
+                {'error': f'Failed to generate report: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def download_pdf(self, request, pk=None):
+        """
+        Download report as PDF
+        GET /api/hospital-comms/reports/{id}/download-pdf/
+        """
+        report = self.get_object()
+        
+        if not report.pdf_file:
+            return Response(
+                {'error': 'PDF file not available for this report'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        response = HttpResponse(report.pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{report.title}.pdf"'
+        return response
+    
+    @action(detail=True, methods=['get'])
+    def download_csv(self, request, pk=None):
+        """
+        Download report as CSV
+        GET /api/hospital-comms/reports/{id}/download-csv/
+        """
+        report = self.get_object()
+        
+        if not report.csv_file:
+            # Generate CSV on the fly if not already generated
+            try:
+                hospital = report.hospital
+                start_date = report.start_date
+                end_date = report.end_date
+                
+                csv_content = ReportGenerator.generate_csv_report(
+                    hospital,
+                    start_date,
+                    end_date,
+                    EmergencyHospitalCommunication.objects.filter(
+                        hospital=hospital,
+                        created_at__date__gte=start_date,
+                        created_at__date__lte=end_date
+                    )
+                )
+                
+                response = HttpResponse(csv_content, content_type='text/csv')
+                response['Content-Disposition'] = f'attachment; filename="{report.title}.csv"'
+                return response
+            except Exception as e:
+                logger.error(f"Failed to generate CSV: {str(e)}")
+                return Response(
+                    {'error': 'Failed to generate CSV file'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        response = HttpResponse(report.csv_file, content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{report.title}.csv"'
+        return response
+    
+    @action(detail=True, methods=['post'])
+    def share(self, request, pk=None):
+        """
+        Share report with other users
+        POST /api/hospital-comms/reports/{id}/share/
+        """
+        report = self.get_object()
+        
+        # Check permissions
+        if request.user.role in ['hospital_staff', 'hospital_admin']:
+            if hasattr(request.user, 'hospital') and request.user.hospital != report.hospital:
+                return Response(
+                    {'error': 'You can only share reports for your hospital'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # For now, just mark as shared
+        report.is_shared = True
+        report.save()
+        
+        return Response({
+            'status': 'success',
+            'message': 'Report marked as shared',
+            'report_id': report.id
+        })
+
+
+class HospitalStatisticsReportAPIView(APIView):
+    """
+    API endpoint for quick statistics report
+    GET /api/hospital-comms/reports/statistics/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            user = request.user
+            
+            # Get hospital for current user
+            hospital = None
+            if hasattr(user, 'hospital') and user.hospital:
+                hospital = user.hospital
+            else:
+                return Response(
+                    {'error': 'No hospital assigned to user'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get date range from query params (default to last 30 days)
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=30)
+            
+            custom_start = request.GET.get('start_date')
+            custom_end = request.GET.get('end_date')
+            
+            if custom_start and custom_end:
+                try:
+                    start_date = datetime.strptime(custom_start, '%Y-%m-%d').date()
+                    end_date = datetime.strptime(custom_end, '%Y-%m-%d').date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Calculate statistics
+            statistics = ReportGenerator.calculate_statistics(hospital, start_date, end_date)
+            
+            # Get recent communications
+            recent_comms = ReportGenerator.get_communications_summary(hospital, start_date, end_date, limit=10)
+            
+            # Get bed occupancy if available
+            bed_occupancy = 0
+            if hasattr(hospital, 'capacity'):
+                bed_occupancy = hospital.capacity.bed_occupancy_rate
+            
+            statistics['bed_occupancy_rate'] = bed_occupancy
+            
+            # Generate recommendations
+            recommendations = ReportGenerator.generate_recommendations(statistics)
+            
+            response_data = {
+                'hospital': {
+                    'id': hospital.id,
+                    'name': hospital.name,
+                    'type': hospital.hospital_type,
+                    'level': hospital.level,
+                },
+                'date_range': {
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat(),
+                    'period_days': (end_date - start_date).days + 1
+                },
+                'statistics': statistics,
+                'recent_communications': recent_comms,
+                'recommendations': recommendations,
+                'generated_at': timezone.now().isoformat(),
+            }
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"Statistics report failed: {str(e)}")
+            return Response(
+                {'error': f'Failed to generate statistics report: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ExportCommunicationsDataAPIView(APIView):
+    """
+    Export communications data as CSV
+    GET /api/hospital-comms/reports/export-data/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            user = request.user
+            
+            # Get hospital for current user
+            hospital = None
+            if hasattr(user, 'hospital') and user.hospital:
+                hospital = user.hospital
+            else:
+                return Response(
+                    {'error': 'No hospital assigned to user'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get date range from query params
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=30)
+            
+            custom_start = request.GET.get('start_date')
+            custom_end = request.GET.get('end_date')
+            
+            if custom_start and custom_end:
+                try:
+                    start_date = datetime.strptime(custom_start, '%Y-%m-%d').date()
+                    end_date = datetime.strptime(custom_end, '%Y-%m-%d').date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Get communications
+            communications = EmergencyHospitalCommunication.objects.filter(
+                hospital=hospital,
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date
+            ).order_by('-created_at')
+            
+            # Generate CSV
+            csv_content = ReportGenerator.generate_csv_report(hospital, start_date, end_date, communications)
+            
+            # Create response
+            filename = f"emergency_communications_{hospital.name}_{start_date}_{end_date}.csv"
+            response = HttpResponse(csv_content, content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Data export failed: {str(e)}")
+            return Response(
+                {'error': f'Failed to export data: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

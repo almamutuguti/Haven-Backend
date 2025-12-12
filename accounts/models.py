@@ -75,6 +75,16 @@ class Organization(models.Model):
 
     def __str__(self):
         return self.name
+    
+    property
+    def first_aider_count(self):
+        """Get total number of first aiders in this organization"""
+        return self.first_aiders.filter(role='first_aider').count()
+    
+    @property
+    def active_first_aider_count(self):
+        """Get number of active first aiders in this organization"""
+        return self.first_aiders.filter(role='first_aider', is_active=True).count()
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):

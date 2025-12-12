@@ -5,6 +5,7 @@ from .models import (
     CommunicationLog, 
     HospitalPreparationChecklist,
     FirstAiderAssessment,
+    HospitalReport,
     PatientAssessment
 )
 from emergencies.models import EmergencyAlert
@@ -295,4 +296,77 @@ class PatientAssessmentCreateSerializer(serializers.ModelSerializer):
         
         return data
 
+
+class HospitalReportSerializer(serializers.ModelSerializer):
+    hospital_name = serializers.CharField(source='hospital.name', read_only=True)
+    generated_by_name = serializers.CharField(source='generated_by.get_full_name', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    csv_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = HospitalReport
+        fields = [
+            'id', 'hospital', 'hospital_name', 'generated_by', 'generated_by_name',
+            'title', 'report_type', 'period', 'start_date', 'end_date',
+            'statistics', 'breakdowns', 'communications', 'recommendations',
+            'pdf_file', 'csv_file', 'file_url', 'csv_url', 'is_generated',
+            'is_shared', 'created_at', 'generated_at'
+        ]
+        read_only_fields = ('generated_by', 'created_at', 'generated_at')
+    
+    def get_file_url(self, obj):
+        if obj.pdf_file:
+            return obj.pdf_file.url
+        return None
+    
+    def get_csv_url(self, obj):
+        if obj.csv_file:
+            return obj.csv_file.url
+        return None
+
+class ReportRequestSerializer(serializers.Serializer):
+    period = serializers.ChoiceField(
+        choices=HospitalReport.PERIOD_CHOICES,
+        default='monthly'
+    )
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    report_type = serializers.ChoiceField(
+        choices=HospitalReport.REPORT_TYPE_CHOICES,
+        default='summary'
+    )
+    include_communications = serializers.BooleanField(default=True)
+    include_statistics = serializers.BooleanField(default=True)
+    include_recommendations = serializers.BooleanField(default=True)
+    generate_pdf = serializers.BooleanField(default=True)
+    generate_csv = serializers.BooleanField(default=False)
+    
+    def validate(self, data):
+        if data.get('period') == 'custom':
+            if not data.get('start_date') or not data.get('end_date'):
+                raise serializers.ValidationError(
+                    "start_date and end_date are required for custom period"
+                )
+            if data['start_date'] > data['end_date']:
+                raise serializers.ValidationError(
+                    "start_date cannot be after end_date"
+                )
+        return data
+
+class ReportStatisticsSerializer(serializers.Serializer):
+    """Serializer for report statistics data"""
+    total_communications = serializers.IntegerField(default=0)
+    avg_response_time_minutes = serializers.FloatField(default=0)
+    acceptance_rate = serializers.FloatField(default=0)
+    success_rate = serializers.FloatField(default=0)
+    patient_arrivals = serializers.IntegerField(default=0)
+    critical_cases = serializers.IntegerField(default=0)
+    avg_preparation_time_minutes = serializers.FloatField(default=0)
+    avg_treatment_time_minutes = serializers.FloatField(default=0)
+    bed_occupancy_rate = serializers.FloatField(default=0)
+    
+    # Breakdowns
+    communications_by_status = serializers.DictField(child=serializers.IntegerField(), default=dict)
+    communications_by_priority = serializers.DictField(child=serializers.IntegerField(), default=dict)
+    communications_by_time = serializers.DictField(child=serializers.IntegerField(), default=dict)
 
