@@ -256,8 +256,8 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
 
 # Frontend URL for email verification links
-FRONTEND_URL = 'https://haven-frontend.vercel.app' 
-
+# FRONTEND_URL = 'https://haven-frontend.vercel.app' 
+FRONTEND_URL = 'http://localhost:5173'  # For local development
 
 # OTP Configuration
 OTP_EXPIRY_MINUTES = 10
