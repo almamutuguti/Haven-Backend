@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = [  
     'localhost',
@@ -82,7 +82,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
-    # "https://haven-indol.vercel.app/",
+    "https://haven-indol.vercel.app",
+    "https://haven-frontend.vercel.app",
+    "https://haven-backend-2.onrender.com",  
+
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -139,23 +142,23 @@ WSGI_APPLICATION = 'HavenBackend.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': config('DATABASE_ENGINE'),
-        'NAME': config('DATABASE_NAME'),
-        'USER': config('DATABASE_USER'),
-        'PASSWORD': config('DATABASE_PASSWORD'),
-        'HOST': config('DATABASE_HOST'),
-        'PORT': config('DATABASE_PORT'),
-    }
-}
-
-
 # DATABASES = {
-#     'default':  dj_database_url.parse(config('DATABASE_URL'))
+#     'default': {
+#         'ENGINE': config('DATABASE_ENGINE'),
+#         'NAME': config('DATABASE_NAME'),
+#         'USER': config('DATABASE_USER'),
+#         'PASSWORD': config('DATABASE_PASSWORD'),
+#         'HOST': config('DATABASE_HOST'),
+#         'PORT': config('DATABASE_PORT'),
+#     }
 # }
 
-# Password validation
+
+DATABASES = {
+    'default':  dj_database_url.parse(config('DATABASE_URL'))
+}
+
+# # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -253,7 +256,8 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
 
 # Frontend URL for email verification links
-FRONTEND_URL = 'http://localhost:3000'
+FRONTEND_URL = 'https://haven-frontend.vercel.app' 
+
 
 # OTP Configuration
 OTP_EXPIRY_MINUTES = 10
