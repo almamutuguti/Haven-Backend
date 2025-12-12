@@ -89,7 +89,7 @@ def send_verification_email(user_email):
         raise
     
     # Create verification URL
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+    frontend_url = getattr(settings, 'FRONTEND_URL')
     verification_url = f"{frontend_url}/verify-email/{token}/"
     
     print(f"Verification URL: {verification_url}")
@@ -155,7 +155,7 @@ def send_verification_email_sync(user_email):
             user.save(update_fields=['email_verification_token', 'email_verification_sent_at'])
         
         # Create verification URL
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        frontend_url = getattr(settings, 'FRONTEND_URL')
         verification_url = f"{frontend_url}/verify-email/{token}/"
         
         # Email content
