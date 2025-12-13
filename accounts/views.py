@@ -11,7 +11,7 @@ from accounts.utils import send_otp_email, send_verification_email
 
 from .permissions import (
     IsSystemAdmin, IsHospitalAdmin, IsOrganizationAdmin,
-    CanAccessHospitalDashboard, CanAccessOrganizationDashboard
+    CanAccessHospitalDashboard, CanAccessOrganizationDashboard, IsSystemAdminOrOrganizationAdmin
 )
 from .models import CustomUser, Organization, SystemSettings
 from django.db import connection
@@ -51,8 +51,6 @@ from .serializers import (
 # AUTHENTICATION VIEWS
 # ============================================================================
 
-# views.py - Update RegisterAPIView
-
 class RegisterAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserRegistrationSerializer
@@ -69,30 +67,23 @@ class RegisterAPIView(generics.CreateAPIView):
         
         print(f"User created: {user.email} (ID: {user.id})")
         print(f"Is email verified: {user.is_email_verified}")
-        print(f"Email verification token before sending: {user.email_verification_token}")
         
-        # CRITICAL: Pass EMAIL to send_verification_email, not user object
-        result = send_verification_email(user.email)
+        # Auto-verify email since we're removing verification requirement
+        user.is_email_verified = True
+        user.email_verification_token = None
+        user.email_verification_sent_at = None
+        user.save()
         
-        # Refresh user to see if token was saved
-        user.refresh_from_db()
-        print(f"After email sent - Token in DB: '{user.email_verification_token}'")
-        print(f"Expected token: '{result.get('token')}'")
-        print(f"Tokens match: {user.email_verification_token == result.get('token')}")
+        print(f"After auto-verification - Is email verified: {user.is_email_verified}")
         print(f"{'='*80}\n")
         
         return Response({
-            'message': 'User registered successfully. Please check your email to verify your account.',
+            'message': 'User registered successfully.',
             'user': UserProfileSerializer(user).data,
-            'requires_verification': True,
-            'debug': {
-                'token_saved': user.email_verification_token is not None,
-                'token_match': user.email_verification_token == result.get('token')
-            }
+            'requires_verification': False,
         }, status=status.HTTP_201_CREATED)
     
 
-# In views.py, update LoginAPIView
 class LoginAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     
@@ -101,14 +92,6 @@ class LoginAPIView(APIView):
         
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            
-            # Check if email is verified
-            if not user.is_email_verified:
-                return Response({
-                    'message': 'Please verify your email first.',
-                    'requires_verification': True,
-                    'user': UserProfileSerializer(user).data
-                }, status=status.HTTP_200_OK)
             
             refresh = RefreshToken.for_user(user)
             
@@ -744,15 +727,6 @@ class RequestOTPAPIView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             
-            # Check if email is verified (optional, depending on your requirements)
-            require_email_verification = request.data.get('require_email_verification', True)
-            
-            if require_email_verification and not user.is_email_verified:
-                return Response({
-                    'error': 'Please verify your email first.',
-                    'requires_verification': True
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
             send_otp_email(user, is_password_reset=False)
             
             return Response({
@@ -888,13 +862,6 @@ class OTPLoginAPIView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             
-            # Check email verification
-            if not user.is_email_verified:
-                return Response({
-                    'error': 'Please verify your email first.',
-                    'requires_verification': True
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
             send_otp_email(user, is_password_reset=False)
             
             return Response({
@@ -906,8 +873,6 @@ class OTPLoginAPIView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-# In your accounts/views.py, add:
-
 class SystemAdminRecentActivityAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
     
@@ -970,8 +935,6 @@ class SystemHealthAPIView(APIView):
         """Get system health metrics"""
         # This would be more sophisticated in production
         # Could connect to monitoring systems
-        
-
         
         # Measure API response time
         start_time = time.time()
